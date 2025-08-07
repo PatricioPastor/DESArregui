@@ -1,3 +1,5 @@
-import { HomeScreen } from "./home-screen";
+import { IMEITable } from "@/components/dashboard/imei-table";
 
-export default HomeScreen;
+export default function HomePage() {
+  return <IMEITable />;
+}
