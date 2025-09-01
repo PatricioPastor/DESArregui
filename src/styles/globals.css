@@ -28,6 +28,31 @@
     transition-timing-function: inherit;
 }
 
+/* Custom surface utilities for dark theme */
+@utility bg-app {
+    background-color: var(--bg);
+}
+
+@utility bg-surface-1 {
+    background-color: var(--surface-1);
+}
+
+@utility bg-surface-2 {
+    background-color: var(--surface-2);
+}
+
+@utility bg-surface-3 {
+    background-color: var(--surface-3);
+}
+
+@utility border-surface {
+    border-color: var(--border);
+}
+
+@utility ring-surface {
+    --tw-ring-color: var(--ring);
+}
+
 html,
 body {
     font-family: var(--font-body);

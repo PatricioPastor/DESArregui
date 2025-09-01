@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(mkdir:*)",
-      "Bash(bun add:*)"
+      "Bash(bun add:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "Bash(bunx:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": []
   }

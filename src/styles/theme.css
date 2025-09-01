@@ -121,19 +121,35 @@
     --color-alpha-white: rgb(255 255 255);
     --color-alpha-black: rgb(0 0 0);
 
-    --color-brand-25: rgb(245 251 255);
-    --color-brand-50: rgb(240 249 255);
-    --color-brand-100: rgb(224 242 254);
-    --color-brand-200: rgb(185 230 254);
-    --color-brand-300: rgb(124 212 253);
-    --color-brand-400: rgb(54 191 250);
-    --color-brand-500: rgb(11 165 236);
-    --color-brand-600: rgb(0 134 201);
-    --color-brand-700: rgb(2 106 162);
-    --color-brand-800: rgb(6 89 134);
-    --color-brand-900: rgb(11 74 111);
-    --color-brand-950: rgb(6 44 65);
+    --color-brand-25:  rgb(248 249 250); /* #f8f9fa */
+    --color-brand-50:  rgb(242 244 244); /* #f2f4f4 */
+    --color-brand-100: rgb(228 233 234); /* #e4e9ea */
+    --color-brand-200: rgb(201 210 212); /* #c9d2d4 */
+    --color-brand-300: rgb(170 184 187); /* #aab8bb */
+    --color-brand-400: rgb(131 152 157); /* #83989d */
+    --color-brand-500: rgb(30 68 77);    /* #1e444d  (primario del logo) */
+    --color-brand-600: rgb(26 58 66);    /* #1a3a42 */
+    --color-brand-700: rgb(22 49 55);    /* #163137 */
+    --color-brand-800: rgb(18 41 46);    /* #12292e */
+    --color-brand-900: rgb(14 33 37);    /* #0e2125 */
+    --color-brand-950: rgb(10 22 25);    /* #0a1619 */
 
+    /* Aliases útiles */
+    --color-brand: var(--color-brand-500);
+    --color-brand-foreground: rgb(255 255 255);      /* texto sobre brand */
+    --color-brand-muted:      var(--color-brand-50); /* fondos suaves */
+    --color-brand-border:     var(--color-brand-200);
+    --color-ring:             var(--color-brand-400);/* focus ring */
+    
+    /* CUSTOM SURFACE COLORS FOR TAILWIND */
+    --bg:            rgb(15 18 20);   /* fondo app */
+    --surface-1:     rgb(20 25 29);   /* cards */
+    --surface-2:     rgb(27 34 39);   /* panels/headers de módulo */
+    --surface-3:     rgb(35 43 49);   /* hovers / bloques anidados */
+    --border:        rgb(45 55 66);   /* líneas y contornos */
+    --ring:          var(--color-brand-400);
+    
+    
     --color-error-25: rgb(255 251 250);
     --color-error-50: rgb(254 243 242);
     --color-error-100: rgb(254 228 226);

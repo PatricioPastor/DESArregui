@@ -1,0 +1,25 @@
+{
+  "id": "telefonos-tickets-dashboard",
+  "started": "2025-08-28T01:47:00.000Z",
+  "lastUpdated": "2025-08-28T01:47:00.000Z",
+  "status": "complete",
+  "phase": "complete",
+  "progress": {
+    "discovery": { "answered": 5, "total": 5 },
+    "detail": { "answered": 5, "total": 5 }
+  },
+  "contextFiles": [
+    "src/lib/sheets.ts",
+    "src/components/dashboard/imei-table.tsx",
+    "src/components/dashboard/reports-display.tsx",
+    "src/hooks/use-base-data.ts",
+    "src/app/api/report/route.ts",
+    "src/app/reportes/phones/claude.md"
+  ],
+  "relatedFeatures": [
+    "IMEI Dashboard (src/components/dashboard/imei-table.tsx)",
+    "Stock Table (src/components/dashboard/stock-table.tsx)",
+    "Reports Display (src/components/dashboard/reports-display.tsx)",
+    "Google Sheets Integration (src/lib/sheets.ts)"
+  ]
+}

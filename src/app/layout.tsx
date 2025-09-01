@@ -5,6 +5,7 @@ import { Theme } from "@/providers/theme";
 import { MainNavigation } from "@/components/application/navigation/main-nav";
 import "@/styles/globals.css";
 import { cx } from "@/utils/cx";
+import '@/utils/chart-setup';
 
 const inter = Inter({
     subsets: ["latin"],
@@ -29,7 +30,7 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="es" suppressHydrationWarning>
-            <body className={cx(inter.variable, "bg-primary antialiased min-h-screen")}>
+            <body className={cx(inter.variable, "bg-app antialiased min-h-screen")}>
                 <RouteProvider>
                     <Theme>
                         <MainNavigation />

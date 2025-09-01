@@ -18,7 +18,7 @@ export function MainNavigation() {
   const { theme, setTheme } = useTheme();
 
   return (
-    <nav className="bg-primary shadow-sm border-b border-secondary mb-8">
+    <nav className="bg-primary shadow-sm border-b border-secondary ">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex">

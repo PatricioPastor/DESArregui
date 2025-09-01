@@ -1,0 +1,172 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{caption}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{amsmath}
+
+% Preambulo para fuentes y compatibilidad
+\usepackage{fontspec} % Omitir si usas PDFLaTeX
+\usepackage{amsmath, amssymb}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{hyperref}
+\usepackage{listings}
+
+% Configuración de página
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Informe de Dispositivos Móviles}
+\fancyhead[R]{Fecha y Hora: 28 de agosto de 2025, 01:36 PM -03}
+\fancyfoot[C]{Página \thepage\ de \pageref{LastPage}}
+
+\begin{document}
+
+\begin{center}
+    {\Large \textbf{INFORME DE DISPOSITIVOS MÓVILES}} \\
+    \vspace{0.2cm}
+    Proyección de Stock y Demanda \\
+    \vspace{0.2cm}
+    Fecha de Reporte: 28 de agosto de 2025, 01:36 PM -03
+\end{center}
+
+\section*{Introducción}
+Este informe tiene como objetivo estimar la cantidad de equipos celulares necesarios para cubrir las necesidades operativas durante el período \textit{junio-agosto 2025}. El análisis se basa en los datos recopilados por Mesa de Ayuda sobre los equipos entregados a las distribuidoras (EDEN, EDEA, EDELAP, EDES y EDESA) desde el 1 de junio de 2025, incluyendo: asignaciones a nuevos usuarios, recambios por robo, rotura, extravío u obsolescencia. Esta información permite establecer una proyección para el próximo trimestre, basada en el comportamiento real del período analizado.
+
+\section{Distribuidoras}
+A continuación, se presenta un resumen del comportamiento de consumo de equipos móviles por parte de cada distribuidora durante el trimestre analizado. Se incluyen datos de:
+\begin{itemize}
+    \item Solicitudes pendientes (resueltas o no según contexto)
+    \item Nuevas asignaciones
+    \item Recambios por obsolescencia, rotura, robo o extravío
+\end{itemize}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{images/tickets_pendientes.png}
+    \caption{Análisis de Tickets Pendientes por Distribuidora (junio-agosto 2025)}
+\end{figure}
+
+\begin{longtable}{|l|c|c|c|c|p{5cm}|}
+    \hline
+    \rowcolor{gray!20} \textbf{Distribuidora} & \textbf{Stock Requerido} & \textbf{Stock Actual} & \textbf{Faltante} & \textbf{Prioridad} & \textbf{Acciones Sugeridas} \\ \hline
+    DESA & 2 & 1 & -1 & \cellcolor{yellow!50} High & Reponer 1 unidades para cubrir demanda \\ 
+    & & & & & Planificar reposición en próxima semana \\ \hline
+    EDES & 2 & 1 & -1 & \cellcolor{yellow!50} High & Reponer 1 unidades para cubrir demanda \\ 
+    & & & & & Planificar reposición en próxima semana \\ \hline
+    EDELAP & 3 & 2 & -1 & \cellcolor{yellow!50} High & Reponer 1 unidades para cubrir demanda \\ 
+    & & & & & Planificar reposición en próxima semana \\ \hline
+    EDEN & 5 & 3 & -2 & \cellcolor{yellow!50} High & Reponer 2 unidades para cubrir demanda \\ 
+    & & & & & Planificar reposición en próxima semana \\ \hline
+    EDEA & 3 & 2 & -1 & \cellcolor{yellow!50} High & Reponer 1 unidades para cubrir demanda \\ 
+    & & & & & Planificar reposición en próxima semana \\ \hline
+    EDESA & 1 & 0 & -1 & \cellcolor{red!50} Critical & \textbf{URGENTE}: Stock crítico - Coordinar reposición inmediata \\ \hline
+    \caption{Tabla de Análisis de Stock por Distribuidora}
+\end{longtable}
+
+\section{Análisis}
+\subsection{Teléfonos Pendientes de Recambio (Solicitud y Obsolescencia)}
+Actualmente, no se registran tickets pendientes activos. No obstante, en la base de datos de SOTI MobiControl se identifican \textbf{26} dispositivos que se encuentran por debajo del estándar vigente (Samsung Galaxy A16/A2X).
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{images/issues_frecuentes.png}
+    \caption{Issues Más Frecuentes (junio-agosto 2025)}
+\end{figure}
+
+\subsection{Teléfonos Reemplazados}
+Durante el trimestre junio-agosto 2025, se entregaron \textbf{64} dispositivos entre asignaciones nuevas y recambios.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{images/distribucion_tipos_issues.png}
+    \caption{Distribución por Distribuidoras y Tipos de Issues (junio-agosto 2025)}
+\end{figure}
+
+\section{Conclusión}
+En el último trimestre (junio-agosto 2025), se entregaron 64 equipos celulares (nuevos y recambios por robo, extravío, rotura u obsolescencia). Comparado con el trimestre anterior (mayo-julio 2025, 73 equipos), la demanda se mantuvo estable.
+\begin{itemize}
+    \item Distribución de entregas:
+    \begin{itemize}
+        \item Nuevos ingresos: 20 unidades
+        \item Rotura: 15 unidades
+        \item Robo/extravío: 10 unidades
+        \item Obsolescencia: 19 unidades
+    \end{itemize}
+\end{itemize}
+
+\subsection{Proyección Próximo Trimestre (septiembre-noviembre 2025)}
+\begin{itemize}
+    \item Demanda estimada: 56 equipos (basado en tendencia).
+    \item Equipos obsoletos (SOTI): 26 unidades.
+    \item Total estimado: 56 + 26 = \textbf{82} equipos.
+\end{itemize}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{images/proyecciones_demanda.png}
+    \caption{Proyecciones de Demanda por Distribuidora (septiembre-noviembre 2025)}
+\end{figure}
+
+\subsubsection{Presupuesto}
+\begin{itemize}
+    \item Modelo: Samsung Galaxy A16 (U$S 576/unidad).
+    \item Costo total: 82 × U$S 576 = U$S \textbf{47,232}.
+\end{itemize}
+
+\subsection{Nota}
+Aunque actualmente no hay tickets pendientes activos, esta estimación contempla posibles ingresos y recambios durante los próximos meses, con base en la evolución reciente de la demanda.
+
+\section{Estado Actual de Stock de Dispositivos}
+El stock actual disponible se compone de 131 dispositivos, de los cuales:
+\begin{itemize}
+    \item 117 unidades del modelo Galaxy A16 están destinadas a cubrir la demanda operativa general (asignaciones, recambios y reemplazos).
+    \item El resto del stock corresponde a modelos de gama media y alta, utilizados en situaciones específicas para jefaturas, coordinaciones o gerencias.
+\end{itemize}
+Este nivel de stock permite, por ahora, responder tanto a la demanda proyectada como a los equipos obsoletos detectados. Sin embargo, en caso de un pico de demanda inesperado o de una demora en la reposición por parte del proveedor, se recomienda reforzar la reserva operativa con una compra preventiva de al menos 30 unidades.
+
+\section{Escenario Mínimo y Urgente}
+En caso de que se priorice solo cubrir lo ya solicitado a través de tickets aprobados, la demanda mínima a cubrir es de \textbf{6} dispositivos (suma de faltantes críticos).
+Este escenario contempla únicamente los reemplazos ya solicitados, que se distribuyen del siguiente modo:
+\begin{itemize}
+    \item EDEA: 1
+    \item EDELAP: 1
+    \item EDESA: 1
+    \item EDEN: 2
+    \item EDES: 1
+    \item DESA: 0
+\end{itemize}
+Presupuesto estimado: U$S \textbf{3,456} (6 × U$S 576).
+
+\section{Adquisición de Accesorios}
+Para acompañar los dispositivos mencionados anteriormente, se recomienda también la compra de los siguientes accesorios, que cubrirán tanto la entrega inmediata como posibles solicitudes por recambios:
+\begin{itemize}
+    \item 50 vidrios templados para Galaxy A25
+    \item 50 fundas para Galaxy A25
+    \item 30 cabezales de cargador tipo C
+\end{itemize}
+Presupuesto estimado para accesorios: U$S \textbf{1,500}.
+
+\section{Proyección de Gama Media / Alta}
+En paralelo al recambio convencional, se prevé la necesidad de reemplazar o asignar nuevos equipos para personal de supervisión, gerencia o dirección.
+Se estima el siguiente requerimiento:
+\begin{itemize}
+    \item Galaxy A35: 5 unidades
+    \item Galaxy A55: 3 unidades
+    \item Galaxy S25+: 2 unidades
+\end{itemize}
+Presupuesto estimado: U$S \textbf{5,760} (Incluye equipos y accesorios correspondientes).
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{images/tendencia_temporal.png}
+    \caption{Tendencia Temporal de Demanda (junio-agosto 2025)}
+\end{figure}
+
+\end{document}
