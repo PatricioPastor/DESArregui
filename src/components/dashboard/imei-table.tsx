@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, memo } from "react";
 import { Edit01, FilterLines, RefreshCw01, SearchLg, Trash01 } from "@untitledui/icons";
 import type { Key, SortDescriptor } from "react-aria-components";
 import { PaginationCardMinimal } from "@/components/application/pagination/pagination";
@@ -17,6 +17,147 @@ import type { IMEIRecord } from "@/lib/types";
 import { cx } from "@/utils/cx";
 
 type FilterType = "all" | "activos" | "inactivos";
+
+// Memoized table row component for better performance
+const TableRow = memo<{ item: IMEIRecord; formatDate: (date: string) => string; getStatusBadge: (status: string) => JSX.Element; getDistribuidoraName: (path: string) => string; onEdit: (record: IMEIRecord) => void; isUpdating: boolean }>(({ 
+  item, 
+  formatDate, 
+  getStatusBadge, 
+  getDistribuidoraName, 
+  onEdit,
+  isUpdating 
+}) => {
+  const handleEdit = useCallback(() => {
+    onEdit(item);
+  }, [item, onEdit]);
+
+  return (
+    <Table.Row id={item.imei}>
+      <Table.Cell>
+        <span className="font-mono text-xs">{item.imei || "-"}</span>
+      </Table.Cell>
+      <Table.Cell>
+        <div className="flex flex-col">
+          <span className="font-medium text-primary">{item.nombre_soti || "-"}</span>
+          <span className="text-xs text-secondary">{item.id_soti || "-"}</span>
+        </div>
+      </Table.Cell>
+      <Table.Cell>
+        <BadgeWithDot type="modern" color="brand">
+          {getDistribuidoraName(item.distribuidora_soti)}
+        </BadgeWithDot>
+      </Table.Cell>
+      <Table.Cell className="whitespace-nowrap">{item.modelo || "-"}</Table.Cell>
+      <Table.Cell>{getStatusBadge(item.status_asignación)}</Table.Cell>
+      <Table.Cell className="whitespace-nowrap text-sm">
+        {formatDate(item.ultima_conexion)}
+      </Table.Cell>
+      <Table.Cell className="whitespace-nowrap hidden xl:table-cell">
+        {item.linea_e_tarifacion || "-"}
+      </Table.Cell>
+      <Table.Cell className="whitespace-nowrap hidden lg:table-cell">
+        <span className={cx(
+          "px-2 py-1 rounded text-xs",
+          item.ticket 
+            ? "bg-orange-50 text-orange-700" 
+            : "text-gray-400"
+        )}>
+          {item.ticket || "Sin ticket"}
+        </span>
+      </Table.Cell>
+      <Table.Cell className="px-3">
+        <div className="flex justify-end gap-0.5">
+          <ButtonUtility 
+            size="xs" 
+            color="tertiary" 
+            tooltip="Editar" 
+            icon={Edit01}
+            onClick={handleEdit}
+            disabled={isUpdating}
+          />
+          <ButtonUtility size="xs" color="tertiary" tooltip="Eliminar" icon={Trash01} />
+        </div>
+      </Table.Cell>
+    </Table.Row>
+  );
+});
+
+TableRow.displayName = 'TableRow';
+
+// Memoized search and filter controls
+const SearchFilterControls = memo<{
+  selectedFilter: Set<Key>;
+  onFilterChange: (filter: Set<Key>) => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+}>(({ selectedFilter, onFilterChange, searchQuery, onSearchChange }) => {
+  const handleSearchChange = useCallback((e: any) => {
+    onSearchChange(e.target.value);
+  }, [onSearchChange]);
+
+  return (
+    <div className="flex flex-col gap-4 border-b border-secondary px-4 py-4 md:px-6 md:flex-row md:items-center md:justify-between">
+      <ButtonGroup 
+        selectedKeys={selectedFilter} 
+        onSelectionChange={onFilterChange}
+      >
+        <ButtonGroupItem id="all">Ver todos</ButtonGroupItem>
+        <ButtonGroupItem id="activos">Activos</ButtonGroupItem>
+        <ButtonGroupItem id="inactivos">Inactivos</ButtonGroupItem>
+      </ButtonGroup>
+
+      <div className="flex gap-3">
+        <Input
+          icon={SearchLg}
+          aria-label="Buscar dispositivos"
+          placeholder="Buscar IMEI, nombre, modelo..."
+          value={searchQuery}
+          onChange={handleSearchChange}
+          className="w-full md:w-80"
+        />
+        <Button size="md" color="secondary" iconLeading={FilterLines}>
+          Filtros
+        </Button>
+      </div>
+    </div>
+  );
+});
+
+SearchFilterControls.displayName = 'SearchFilterControls';
+
+// Memoized table header
+const TableHeader = memo<{
+  totalItems: number;
+  lastUpdated: string | null;
+  formatDate: (date: string) => string;
+  onRefresh: () => void;
+  isLoading: boolean;
+  isUpdating: boolean;
+}>(({ totalItems, lastUpdated, formatDate, onRefresh, isLoading, isUpdating }) => {
+  return (
+    <TableCard.Header
+      title="IMEI y Dispositivos"
+      badge={`${totalItems} ${totalItems === 1 ? 'dispositivo' : 'dispositivos'}`}
+      description={lastUpdated ? `Última actualización: ${formatDate(lastUpdated)}` : undefined}
+      contentTrailing={
+        <div className="absolute top-5 flex items-center gap-4 right-4 md:right-6">
+          <Button 
+            color="secondary" 
+            size="md" 
+            iconLeading={RefreshCw01} 
+            onClick={onRefresh}
+            disabled={isLoading || isUpdating}
+          >
+            {isLoading ? "Actualizando..." : "Actualizar"}
+          </Button> 
+          <TableRowActionsDropdown />
+        </div>
+      }
+    />
+  );
+});
+
+TableHeader.displayName = 'TableHeader';
 
 export function IMEITable() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -209,51 +350,21 @@ export function IMEITable() {
 
 
       <TableCard.Root>
-        <TableCard.Header
-          title="IMEI y Dispositivos"
-          badge={`${paginationInfo.totalItems} ${paginationInfo.totalItems === 1 ? 'dispositivo' : 'dispositivos'}`}
-          description={lastUpdated ? `Última actualización: ${formatDate(lastUpdated)}` : undefined}
-          contentTrailing={
-            <div className="absolute top-5 flex items-center gap-4 right-4 md:right-6">
-              <Button 
-            color="secondary" 
-            size="md" 
-            iconLeading={RefreshCw01} 
-            onClick={handleRefresh}
-            disabled={isLoading || isUpdating}
-          >
-            {isLoading ? "Actualizando..." : "Actualizar"}
-          </Button> 
-              <TableRowActionsDropdown />
-            </div>
-          }
+        <TableHeader
+          totalItems={paginationInfo.totalItems}
+          lastUpdated={lastUpdated}
+          formatDate={formatDate}
+          onRefresh={handleRefresh}
+          isLoading={isLoading}
+          isUpdating={isUpdating}
         />
 
-        {/* Search and Filter Bar */}
-        <div className="flex flex-col gap-4 border-b border-secondary px-4 py-4 md:px-6 md:flex-row md:items-center md:justify-between">
-          <ButtonGroup 
-            selectedKeys={selectedFilter} 
-            onSelectionChange={setSelectedFilter}
-          >
-            <ButtonGroupItem id="all">Ver todos</ButtonGroupItem>
-            <ButtonGroupItem id="activos">Activos</ButtonGroupItem>
-            <ButtonGroupItem id="inactivos">Inactivos</ButtonGroupItem>
-          </ButtonGroup>
-
-          <div className="flex gap-3">
-            <Input
-              icon={SearchLg}
-              aria-label="Buscar dispositivos"
-              placeholder="Buscar IMEI, nombre, modelo..."
-              value={searchQuery}
-              onChange={(e:any) => setSearchQuery(e.target.value)}
-              className="w-full md:w-80"
-            />
-            <Button size="md" color="secondary" iconLeading={FilterLines}>
-              Filtros
-            </Button>
-          </div>
-        </div>
+        <SearchFilterControls
+          selectedFilter={selectedFilter}
+          onFilterChange={setSelectedFilter}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+        />
 
         {isLoading ? (
           <div className="flex items-center justify-center p-12">
@@ -282,53 +393,15 @@ export function IMEITable() {
 
               <Table.Body items={paginationInfo.paginatedData}>
                 {(item) => (
-                  <Table.Row id={item.imei}>
-                    <Table.Cell>
-                      <span className="font-mono text-xs">{item.imei || "-"}</span>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <div className="flex flex-col">
-                        <span className="font-medium text-primary">{item.nombre_soti || "-"}</span>
-                        <span className="text-xs text-secondary">{item.id_soti || "-"}</span>
-                      </div>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <BadgeWithDot type="modern" color="brand">
-                         {getDistribuidoraName(item.distribuidora_soti)}
-                      </BadgeWithDot>
-                    </Table.Cell>
-                    <Table.Cell className="whitespace-nowrap">{item.modelo || "-"}</Table.Cell>
-                    <Table.Cell>{getStatusBadge(item.status_asignación)}</Table.Cell>
-                    <Table.Cell className="whitespace-nowrap text-sm">
-                      {formatDate(item.ultima_conexion)}
-                    </Table.Cell>
-                    <Table.Cell className="whitespace-nowrap hidden xl:table-cell">
-                      {item.linea_e_tarifacion || "-"}
-                    </Table.Cell>
-                    <Table.Cell className="whitespace-nowrap hidden lg:table-cell">
-                      <span className={cx(
-                        "px-2 py-1 rounded text-xs",
-                        item.ticket 
-                          ? "bg-orange-50 text-orange-700" 
-                          : "text-gray-400"
-                      )}>
-                        {item.ticket || "Sin ticket"}
-                      </span>
-                    </Table.Cell>
-                    <Table.Cell className="px-3">
-                      <div className="flex justify-end gap-0.5">
-                        <ButtonUtility 
-                          size="xs" 
-                          color="tertiary" 
-                          tooltip="Editar" 
-                          icon={Edit01}
-                          onClick={() => handleEditRecord(item)}
-                          disabled={isUpdating}
-                        />
-                        <ButtonUtility size="xs" color="tertiary" tooltip="Eliminar" icon={Trash01} />
-                      </div>
-                    </Table.Cell>
-                  </Table.Row>
+                  <TableRow
+                    key={item.imei}
+                    item={item}
+                    formatDate={formatDate}
+                    getStatusBadge={getStatusBadge}
+                    getDistribuidoraName={getDistribuidoraName}
+                    onEdit={handleEditRecord}
+                    isUpdating={isUpdating}
+                  />
                 )}
               </Table.Body>
             </Table>

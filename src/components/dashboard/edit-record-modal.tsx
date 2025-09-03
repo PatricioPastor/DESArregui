@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo, useCallback, useEffect } from "react";
 import { X } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
 import { ButtonUtility } from "@/components/base/buttons/button-utility";
@@ -29,12 +29,12 @@ const statusOptions = [
   { value: "Perdido", label: "Perdido" },
 ];
 
-export function EditRecordModal({ isOpen, onClose, record, onSave, isLoading }: EditRecordModalProps) {
+export const EditRecordModal = memo<EditRecordModalProps>(({ isOpen, onClose, record, onSave, isLoading }) => {
   const [formData, setFormData] = useState<Partial<IMEIRecord>>({});
   const [isSaving, setIsSaving] = useState(false);
 
   // Initialize form data when record changes
-  useState(() => {
+  useEffect(() => {
     if (record) {
       setFormData({
         status_asignación: record.status_asignación || "",
@@ -44,9 +44,9 @@ export function EditRecordModal({ isOpen, onClose, record, onSave, isLoading }: 
         plan_e_tarifación: record.plan_e_tarifación || "",
       });
     }
-  });
+  }, [record]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!record) return;
     
     setIsSaving(true);
@@ -72,14 +72,14 @@ export function EditRecordModal({ isOpen, onClose, record, onSave, isLoading }: 
     if (success) {
       onClose();
     }
-  };
+  }, [record, formData, onSave, onClose]);
 
-  const handleFieldChange = (field: keyof IMEIRecord, value: string) => {
+  const handleFieldChange = useCallback((field: keyof IMEIRecord, value: string) => {
     setFormData(prev => ({
       ...prev,
       [field]: value,
     }));
-  };
+  }, []);
 
   if (!record) return null;
 
@@ -216,4 +216,6 @@ export function EditRecordModal({ isOpen, onClose, record, onSave, isLoading }: 
     //   </ModalContent>
     // </Modal>
   );
-}
+});
+
+EditRecordModal.displayName = 'EditRecordModal';
