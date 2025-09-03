@@ -6,12 +6,15 @@ import { es } from 'date-fns/locale';
 
 // Components
 import { Button } from '@/components/base/buttons/button';
+import { Input } from '@/components/base/input/input';
 import { DateRangePicker } from '@/components/application/date-picker/date-range-picker';
+import { Select } from '@/components/base/select/select';
+import { SelectItem } from '@/components/base/select/select-item';
 
 // Hooks
 import { useTelefonosTicketsData } from '@/hooks/use-telefonos-tickets-data';
 import type { TelefonosTicketsFilters } from '@/lib/types';
-import { Activity, AlertTriangle, BarChart03, Download01, PieChart01, RefreshCw01, TrendUp01 } from '@untitledui/icons';
+import { Activity, AlertTriangle, BarChart03, Download01, FilterFunnel01, PieChart01, RefreshCw01, SearchSm, TrendUp01 } from '@untitledui/icons';
 
 // Local components
 import { MetricCard } from './MetricCard';
@@ -33,10 +36,20 @@ export function TelefonosDashboard() {
     filterOptions
   } = useTelefonosTicketsData();
 
+  // Generate filter options from analytics data if not provided by hook
+  const availableEnterprises = filterOptions.enterprises.length > 0 
+    ? filterOptions.enterprises 
+    : analytics ? Object.keys(analytics.byEnterprise) : [];
+    
+  const availableIssueTypes = filterOptions.issueTypes.length > 0 
+    ? filterOptions.issueTypes 
+    : analytics ? Object.keys(analytics.byIssueType) : [];
+
   const [filters, setFilters] = useState<TelefonosTicketsFilters>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEnterprises, setSelectedEnterprises] = useState<string[]>([]);
   const [selectedIssueTypes, setSelectedIssueTypes] = useState<string[]>([]);
+  const [selectedDateRange, setSelectedDateRange] = useState<any>(null);
 
   const { generateDemandAnalysisReport, generateStockAnalysisReport } = useReportGeneration({ analytics });
 
@@ -96,6 +109,8 @@ export function TelefonosDashboard() {
   }, [analytics, filters.dateRange]);
 
   const handleDateRangeChange = async (dates: any) => {
+    setSelectedDateRange(dates);
+    
     if (!dates || !dates.start || !dates.end) {
       console.log('No valid date range provided');
       return;
@@ -117,6 +132,29 @@ export function TelefonosDashboard() {
     } catch (error) {
       console.error('Error processing date range:', error);
     }
+  };
+
+  const handleFilterChange = async () => {
+    const newFilters: TelefonosTicketsFilters = {
+      ...filters,
+      searchKeyword: searchQuery || undefined,
+      enterprise: selectedEnterprises.length > 0 ? selectedEnterprises : undefined,
+      issueType: selectedIssueTypes.length > 0 ? selectedIssueTypes : undefined,
+    };
+    
+    setFilters(newFilters);
+    await applyFilters(newFilters);
+  };
+
+  const handleResetFilters = async () => {
+    setSearchQuery('');
+    setSelectedEnterprises([]);
+    setSelectedIssueTypes([]);
+    setSelectedDateRange(null);
+    
+    const resetFilters = {};
+    setFilters(resetFilters);
+    await applyFilters(resetFilters);
   };
 
   if (error) {
@@ -153,35 +191,117 @@ export function TelefonosDashboard() {
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Date Range */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Rango de fechas
               </label>
               <DateRangePicker
+                value={selectedDateRange}
                 onChange={handleDateRangeChange}
               />
             </div>
 
-            {/* Filter Button */}
-            <div className="flex items-end justify-end gap-2 flex-grow">
-              <div className="flex items-center space-x-3">
-                <Button
-                  color="secondary"
-                  onClick={refresh}
-                  disabled={isLoading}
-                  className="inline-flex items-center"
-                >
-                  Sincronizar
-                </Button>
-                <Button iconLeading={Download01} onClick={generateDemandAnalysisReport} className="inline-flex items-center">
-                  Reporte Demanda
-                </Button>
-                <Button iconLeading={Download01} onClick={generateStockAnalysisReport} color="secondary" className="inline-flex items-center">
-                  Reporte Stock
-                </Button>
+            {/* Search */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Búsqueda
+              </label>
+              <div className="relative">
+                <Input
+                  icon={SearchSm}
+                  placeholder="Buscar tickets..."
+                  value={searchQuery}
+                  onChange={(e: any) => setSearchQuery(e.target.value)}
+                  className="w-full"
+                />
               </div>
+            </div>
+
+            {/* Enterprises Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Distribuidoras
+              </label>
+              <Select 
+                placeholder="Seleccionar distribuidoras"
+                selectedKey={selectedEnterprises[0] || null}
+                items={availableEnterprises.map(enterprise => ({
+                  id: enterprise,
+                  label: enterprise
+                }))}
+                onSelectionChange={(key) => {
+                  setSelectedEnterprises(key ? [key as string] : []);
+                }}
+              >
+                {(item) => (
+                  <SelectItem id={item.id} label={item.label}>
+                    {item.label}
+                  </SelectItem>
+                )}
+              </Select>
+            </div>
+
+            {/* Issue Types Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Tipos de Issues
+              </label>
+              <Select 
+                placeholder="Seleccionar tipos"
+                selectedKey={selectedIssueTypes[0] || null}
+                items={availableIssueTypes.map(issueType => ({
+                  id: issueType,
+                  label: issueType
+                }))}
+                onSelectionChange={(key) => {
+                  setSelectedIssueTypes(key ? [key as string] : []);
+                }}
+              >
+                {(item) => (
+                  <SelectItem id={item.id} label={item.label}>
+                    {item.label}
+                  </SelectItem>
+                )}
+              </Select>
+            </div>
+          </div>
+
+          {/* Filter Actions */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <Button 
+                onClick={handleFilterChange} 
+                iconLeading={FilterFunnel01}
+                disabled={isLoading}
+              >
+                Aplicar Filtros
+              </Button>
+              <Button 
+                onClick={handleResetFilters}
+                color="secondary"
+                disabled={isLoading}
+              >
+                Limpiar
+              </Button>
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <Button
+                color="secondary"
+                onClick={refresh}
+                disabled={isLoading}
+                className="inline-flex items-center"
+              >
+                Sincronizar
+              </Button>
+              <Button iconLeading={Download01} onClick={generateDemandAnalysisReport} className="inline-flex items-center">
+                Reporte Demanda
+              </Button>
+              <Button iconLeading={Download01} onClick={generateStockAnalysisReport} color="secondary" className="inline-flex items-center">
+                Reporte Stock
+              </Button>
             </div>
           </div>
         </div>
