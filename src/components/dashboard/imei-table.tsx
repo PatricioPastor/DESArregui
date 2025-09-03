@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { Edit01, FilterLines, RefreshCw01, SearchLg, Trash01 } from "@untitledui/icons";
 import type { Key, SortDescriptor } from "react-aria-components";
 import { PaginationCardMinimal } from "@/components/application/pagination/pagination";
@@ -36,71 +36,90 @@ export function IMEITable() {
   // Use local data if available, otherwise use fetched data
   const data = localData.length > 0 ? localData : fetchedData;
   
-  // Initialize local data when fetched data changes
-  useState(() => {
+  // Initialize local data when fetched data changes (using useEffect instead of useState)
+  useEffect(() => {
     if (fetchedData.length > 0 && localData.length === 0) {
       setLocalData(fetchedData);
     }
-  });
+  }, [fetchedData, localData.length]);
 
   const { optimisticBatchUpdate, isUpdating } = useOptimisticRecordActions(data, setLocalData);
 
-  // Filter data based on selected filter
+  // Memoized filter functions for better performance
+  const activeStatusFilter = useCallback((record: IMEIRecord) => {
+    const status = record.status_asignación?.toLowerCase();
+    return status?.includes("usando") || status?.includes("activo");
+  }, []);
+
+  const inactiveStatusFilter = useCallback((record: IMEIRecord) => {
+    const status = record.status_asignación?.toLowerCase();
+    return !status?.includes("usando") && !status?.includes("activo");
+  }, []);
+
+  // Optimized filter with specific filter type dependency
+  const currentFilterType = useMemo(() => {
+    return selectedFilter.values().next().value as FilterType;
+  }, [selectedFilter]);
+
   const filteredData = useMemo(() => {
-    let filtered = data;
-
-    switch (selectedFilter.values().next().value) {
+    if (!data.length) return [];
+    
+    switch (currentFilterType) {
       case "activos":
-        filtered = data.filter(record => 
-          record.status_asignación?.toLowerCase().includes("usando") ||
-          record.status_asignación?.toLowerCase().includes("activo")
-        );
-        break;
+        return data.filter(activeStatusFilter);
       case "inactivos":
-        filtered = data.filter(record => 
-          !record.status_asignación?.toLowerCase().includes("usando") &&
-          !record.status_asignación?.toLowerCase().includes("activo")
-        );
-        break;
+        return data.filter(inactiveStatusFilter);
       default:
-        filtered = data;
+        return data;
     }
+  }, [data, currentFilterType, activeStatusFilter, inactiveStatusFilter]);
 
-    return filtered;
-  }, [data, selectedFilter]);
-
-  // Sort data
+  // Optimized sorting with stable sort and better memoization
   const sortedItems = useMemo(() => {
-    return filteredData.sort((a, b) => {
-      const first = a[sortDescriptor.column as keyof IMEIRecord] as string;
-      const second = b[sortDescriptor.column as keyof IMEIRecord] as string;
+    if (!filteredData.length) return [];
+    
+    const { column, direction } = sortDescriptor;
+    const isDescending = direction === "descending";
+    const isDateColumn = column === "ultima_conexion" || column === "primera_conexion";
+    
+    // Use slice to avoid mutating original array
+    return [...filteredData].sort((a, b) => {
+      const first = a[column as keyof IMEIRecord] as string;
+      const second = b[column as keyof IMEIRecord] as string;
 
+      // Handle null/undefined values
       if (!first && !second) return 0;
       if (!first) return 1;
       if (!second) return -1;
 
-      // Handle date sorting for conexion fields
-      if (sortDescriptor.column === "ultima_conexion" || sortDescriptor.column === "primera_conexion") {
-        const firstDate = new Date(first).getTime();
-        const secondDate = new Date(second).getTime();
-        return sortDescriptor.direction === "descending" ? secondDate - firstDate : firstDate - secondDate;
+      let comparison = 0;
+      
+      if (isDateColumn) {
+        // Optimize date parsing with direct comparison
+        const firstTime = new Date(first).getTime();
+        const secondTime = new Date(second).getTime();
+        comparison = firstTime - secondTime;
+      } else {
+        // Cache locale comparison
+        comparison = first.localeCompare(second, 'es', { numeric: true });
       }
-
-      // Handle string sorting
-      const cmp = first.localeCompare(second, 'es', { numeric: true });
-      return sortDescriptor.direction === "descending" ? -cmp : cmp;
+      
+      return isDescending ? -comparison : comparison;
     });
-  }, [filteredData, sortDescriptor]);
+  }, [filteredData, sortDescriptor.column, sortDescriptor.direction]);
 
-  // Paginate data
-  const paginatedData = useMemo(() => {
+  // Optimized pagination with early calculation
+  const paginationInfo = useMemo(() => {
+    const totalItems = sortedItems.length;
+    const totalPages = Math.ceil(totalItems / pageSize);
     const startIndex = (page - 1) * pageSize;
-    return sortedItems.slice(startIndex, startIndex + pageSize);
+    const paginatedData = sortedItems.slice(startIndex, startIndex + pageSize);
+    
+    return { paginatedData, totalPages, totalItems };
   }, [sortedItems, page, pageSize]);
 
-  const totalPages = Math.ceil(sortedItems.length / pageSize);
-
-  const formatDate = (dateString: string) => {
+  // Memoized date formatter to avoid repeated date parsing
+  const formatDate = useCallback((dateString: string) => {
     if (!dateString) return "-";
     try {
       return new Date(dateString).toLocaleDateString('es-ES', {
@@ -113,12 +132,14 @@ export function IMEITable() {
     } catch {
       return dateString;
     }
-  };
+  }, []);
 
-  const getStatusBadge = (status: string) => {
+  // Memoized status badge component
+  const getStatusBadge = useCallback((status: string) => {
     if (!status) return <Badge color="gray" size="sm">-</Badge>;
     
-    const isActive = status.toLowerCase().includes("usando") || status.toLowerCase().includes("activo");
+    const lowerStatus = status.toLowerCase();
+    const isActive = lowerStatus.includes("usando") || lowerStatus.includes("activo");
     
     return (
       <BadgeWithDot 
@@ -129,9 +150,10 @@ export function IMEITable() {
         {status}
       </BadgeWithDot>
     );
-  };
+  }, []);
 
-  const getDistribuidoraName = (fullPath: string) => {
+  // Memoized distribuidora name extractor
+  const getDistribuidoraName = useCallback((fullPath: string) => {
     if (!fullPath) return "-";
     
     // Extract everything after the first backslash and before the second
@@ -147,7 +169,7 @@ export function IMEITable() {
     }
     
     return fullPath; // Return full path if doesn't match expected format
-  };
+  }, []);
 
   const handleEditRecord = (record: IMEIRecord) => {
     setEditingRecord(record);
@@ -189,7 +211,7 @@ export function IMEITable() {
       <TableCard.Root>
         <TableCard.Header
           title="IMEI y Dispositivos"
-          badge={`${sortedItems.length} ${sortedItems.length === 1 ? 'dispositivo' : 'dispositivos'}`}
+          badge={`${paginationInfo.totalItems} ${paginationInfo.totalItems === 1 ? 'dispositivo' : 'dispositivos'}`}
           description={lastUpdated ? `Última actualización: ${formatDate(lastUpdated)}` : undefined}
           contentTrailing={
             <div className="absolute top-5 flex items-center gap-4 right-4 md:right-6">
@@ -258,7 +280,7 @@ export function IMEITable() {
                 <Table.Head id="actions" className="w-20" />
               </Table.Header>
 
-              <Table.Body items={paginatedData}>
+              <Table.Body items={paginationInfo.paginatedData}>
                 {(item) => (
                   <Table.Row id={item.imei}>
                     <Table.Cell>
@@ -314,7 +336,7 @@ export function IMEITable() {
             <PaginationCardMinimal
               align="right"
               page={page}
-              total={totalPages}
+              total={paginationInfo.totalPages}
               onPageChange={setPage}
               className="px-4 py-3 md:px-5 md:pt-3 md:pb-4"
             />
