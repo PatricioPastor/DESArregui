@@ -213,7 +213,7 @@ export function TelefonosDashboard() {
                   icon={SearchSm}
                   placeholder="Buscar tickets..."
                   value={searchQuery}
-                  onChange={(e: any) => setSearchQuery(e.target.value)}
+                  onChange={(value: any) => setSearchQuery(value)}
                   className="w-full"
                 />
               </div>
