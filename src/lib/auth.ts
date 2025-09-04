@@ -50,15 +50,13 @@ export const auth = betterAuth({
     //     const email = ctx.context.newSession?.user.email;
     //     const d = domainOf(email);
 
-    //     console.log(email)
+        
+        
 
-    //     const deny =
-    //       !email ||
-    //       BLOCK.includes(d) ||
-    //       (ALLOW.length > 0 && !ALLOW.includes(d));
+    //     const deny = !email || BLOCK.includes(d) || (ALLOW.length > 0 && !ALLOW.includes(d));
     //     if (deny) {
-    //       // Opcional: limpiar sesión recién creada si fuera necesario.
-    //       throw new APIError("UNAUTHORIZED", { message: "Dominio no permitido." });
+          
+    //       throw new APIError("UNAUTHORIZED", { message: "Dominio no permitido. " + email });
     //     }
     //   }
     // }),

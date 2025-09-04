@@ -15,6 +15,26 @@ export interface IMEIRecord {
   ticket: string;
   observaciones: string;
 }
+export interface SOTIRecord {
+  nombre_dispositivo:string  
+  usuario_asignado:string    
+  modelo:string
+  imei:string
+  ruta:string
+  hora_registro:string       
+  hora_inscripcion:string    
+  fecha_conexion:string      
+  fecha_desconexion:string   
+  telefono:string
+  bssid_red:string
+  ssid_red:string
+  id_ticket_jira:string      
+  telefono_custom:string     
+  correo_custom:string       
+  correo_android_enter:string
+  ubicacion:string
+}
+
 
 // API Response types
 export interface BaseSheetResponse {

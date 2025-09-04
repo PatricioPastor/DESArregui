@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/base/checkbox/checkbox";
 import { SocialButton } from "@/components/base/buttons/social-button";
 import { useState } from "react";
 import { signIn } from "@/lib/auth-client";
+import { AvatarLabelGroup } from "@/components/base/avatar/avatar-label-group";
 
 
 
@@ -44,53 +45,44 @@ export default function AuthSplitQuote() {
 
   return (
     
-      
+        
+        <section className="flex min-h-screen bg-primary items-center px-4 py-8 md:px-8 md:py-12">
+        <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-3xl border border-white/10 bg-black/30 backdrop-blur-sm">
         <div className="grid grid-cols-1 md:grid-cols-2">
           {/* Left: testimonial / quote */}
           <aside className="relative hidden min-h-[560px] flex-col justify-between p-8 md:flex md:p-12">
-            <div className="absolute left-6 top-6 flex items-center gap-3 text-white/80">
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/10" />
-              <span className="text-sm font-medium">Untitled UI</span>
+            <div className="absolute left-12 top-12 flex items-center gap-3 text-white/80">
+              <Image alt="Logo" src="desarregui.svg" width={160} height={120} />
             </div>
 
             <div className="mt-16 flex flex-1 flex-col items-start justify-center">
               <blockquote className="max-w-xl text-balance text-2xl font-semibold leading-snug text-primary md:text-3xl">
-                {"We've been using Untitled to kick start every new project and can't imagine working without it."}
+                {"Amo esta aplicación! Es lo mejor que me pasó en la vida"}
               </blockquote>
 
               <div className="mt-8 flex items-center gap-4">
-                <div className="relative h-12 w-12 overflow-hidden rounded-full ring-1 ring-white/10">
-                  {/* <Image
-                    src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=256&auto=format&fit=crop"
+                
+                  <AvatarLabelGroup
+                    src="/tomi.jpeg"
                     alt="Avatar"
-                    fill
-                    sizes="48px"
-                  /> */}
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-primary">Pippa Wilkinson</div>
-                  <div className="text-xs text-white/60">Head of Design, Layers</div>
-                  <div className="mt-2 flex items-center gap-1">
-                    {[...Array(5)].map((_, i) => (
-                      <svg key={i} viewBox="0 0 20 20" className="h-4 w-4 fill-yellow-400/90" aria-hidden="true">
-                        <path d="M10 15.27 16.18 19l-1.64-7.03L20 7.24l-7.19-.61L10 0 7.19 6.63 0 7.24l5.46 4.73L3.82 19z" />
-                      </svg>
-                    ))}
-                  </div>
-                </div>
+                    size="lg"
+                    subtitle={"Lider del sindicato"}
+                    title={"Tomás Arregui"}
+                  />
               </div>
+                
             </div>
 
-            <footer className="mt-8 text-xs text-white/40">© Untitled UI 2077</footer>
+            <footer className="mt-8 text-xs text-white/40">© BIOS Inc. 2077</footer>
           </aside>
 
           {/* Right: form */}
           <div className="relative flex min-h-[560px] flex-col justify-center p-8 md:p-12">
             <div className="mx-auto w-full max-w-md">
-              <h1 className="text-2xl font-semibold text-primary md:text-3xl">Welcome back</h1>
-              <p className="mt-2 text-sm text-white/60">
-                Welcome back! Please enter your details.
-              </p>
+              <h1 className="text-2xl font-semibold text-primary md:text-3xl">Bienvenido! </h1>
+              {/* <p className="mt-2 text-sm text-white/60">
+                Bienvenido!
+              </p> */}
 
               <form onSubmit={onSubmit} className="mt-8 space-y-6">
                 <Input id="email"
@@ -172,7 +164,9 @@ export default function AuthSplitQuote() {
               </form>
             </div>
           </div>
+            </div>
         </div>
+    </section>
       
     
   );
