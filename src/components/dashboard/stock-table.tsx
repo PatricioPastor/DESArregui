@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Edit01, FilterLines, RefreshCw01, SearchLg, Trash01 } from "@untitledui/icons";
+import { Edit01, FilterLines, RefreshCw01, SearchLg, Trash01, Plus } from "@untitledui/icons";
 import type { Key, SortDescriptor } from "react-aria-components";
 import { PaginationCardMinimal } from "@/components/application/pagination/pagination";
 import { Table, TableCard, TableRowActionsDropdown } from "@/components/application/table/table";
@@ -11,6 +11,7 @@ import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { Input } from "@/components/base/input/input";
 import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
 import { useFilteredStockData } from "@/hooks/use-stock-data";
+import { AddStockModal } from "./AddStockModal";
 import type { StockRecord } from "@/lib/types";
 import { cx } from "@/utils/cx";
 
@@ -25,6 +26,8 @@ export function StockTable() {
   const [selectedFilter, setSelectedFilter] = useState<Set<Key>>(new Set(["all"]));
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const { data, isLoading, error, lastUpdated, totalRecords, refresh } = useFilteredStockData(searchQuery);
 
@@ -131,6 +134,41 @@ export function StockTable() {
     );
   };
 
+  const handleAddStock = async (stockData: {
+    imei: string;
+    modelo: string;
+    distribuidora: string;
+  }) => {
+    try {
+      setIsSaving(true);
+      
+      const response = await fetch('/api/stock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(stockData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al guardar el dispositivo');
+      }
+
+      // Refresh the data after successful save
+      await refresh();
+      
+      return true;
+    } catch (error) {
+      console.error('Error saving stock:', error);
+      // You can add toast notification here
+      alert(error instanceof Error ? error.message : 'Error al guardar el dispositivo');
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   if (error) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -154,13 +192,22 @@ export function StockTable() {
           badge={`${sortedItems.length} ${sortedItems.length === 1 ? 'dispositivo' : 'dispositivos'}`}
           description={lastUpdated ? `Última actualización: ${formatDate(lastUpdated)}` : undefined}
           contentTrailing={
-            <div className="absolute top-5 right-4 md:right-6 flex items-center justify-end gap-4">
+            <div className="absolute top-5 right-4 md:right-6 flex items-center justify-end gap-3">
+              <Button 
+                color="primary" 
+                size="md" 
+                iconLeading={Plus} 
+                onClick={() => setIsAddModalOpen(true)}
+                disabled={isLoading || isSaving}
+              >
+                Agregar Stock
+              </Button>
               <Button 
                 color="secondary" 
                 size="md" 
                 iconLeading={RefreshCw01} 
                 onClick={refresh}
-                disabled={isLoading}
+                disabled={isLoading || isSaving}
               >
                 {isLoading ? "Actualizando..." : "Actualizar"}
               </Button>
@@ -272,6 +319,13 @@ export function StockTable() {
           </>
         )}
       </TableCard.Root>
+
+      <AddStockModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSave={handleAddStock}
+        isLoading={isSaving}
+      />
     </div>
   );
 }
