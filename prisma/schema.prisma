@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -7,6 +6,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["main_auth", "phones"]
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -25,6 +25,7 @@ model User {
 
   @@unique([email])
   @@map("user")
+  @@schema("main_auth")
 }
 
 model Session {
@@ -40,6 +41,7 @@ model Session {
 
   @@unique([token])
   @@map("session")
+  @@schema("main_auth")
 }
 
 model Account {
@@ -59,6 +61,7 @@ model Account {
   updatedAt             DateTime
 
   @@map("account")
+  @@schema("main_auth")
 }
 
 model Verification {
@@ -70,4 +73,101 @@ model Verification {
   updatedAt  DateTime?
 
   @@map("verification")
+  @@schema("main_auth")
+}
+
+enum DeviceStatus {
+  IN_STOCK
+  ASSIGNED
+  SOLD
+  RETURNED
+  DAMAGED
+  LOST
+
+  @@schema("phones")
+}
+
+model PhoneModel {
+  id        String  @id @default(cuid())
+  brand     String
+  model     String
+  storageGb Int?
+  color     String?
+  sku       String?
+
+  devices Device[]
+
+  @@unique([brand, model, storageGb, color])
+  @@map("phone_model")
+  @@schema("phones")
+}
+
+model Distributor {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  devices   Device[]
+  purchases Purchase[]
+
+  @@map("distributor")
+  @@schema("phones")
+}
+
+model Purchase {
+  id            String      @id @default(cuid())
+  distributorId String
+  distributor   Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  purchasedAt   DateTime    @default(now())
+  currency      String      @default("ARS")
+  invoiceNumber String?
+
+  devices Device[]
+
+  @@index([distributorId])
+  @@map("purchase")
+  @@schema("phones")
+}
+
+model Device {
+  id      String     @id @default(cuid())
+  imei    String     @unique
+  modelId String
+  model   PhoneModel @relation(fields: [modelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  distributorId String?
+  distributor   Distributor? @relation(fields: [distributorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  purchaseId String?
+  purchase   Purchase? @relation(fields: [purchaseId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  status DeviceStatus @default(IN_STOCK)
+
+  // MVP links (no FK a otros esquemas para mantenerlo simple)
+  assignedTo String? // persona/usuario
+  ticketId   String? // id de ticket externo
+
+  assignments Assignment[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([modelId])
+  @@index([status])
+  @@index([assignedTo])
+  @@index([ticketId])
+  @@map("device")
+  @@schema("phones")
+}
+
+model Assignment {
+  id       String @id @default(cuid())
+  deviceId String
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  type       String // "ASSIGN" | "UNASSIGN"
+  assignedTo String?
+  ticketId   String?
+  at         DateTime @default(now())
+
+  @@index([deviceId, at])
+  @@map("assignment")
+  @@schema("phones")
 }

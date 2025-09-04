@@ -122,6 +122,76 @@ export function convertRowToIMEIRecord(row: string[], headers: string[]): IMEIRe
   };
 }
 
+export function convertRowToSOTIRecord(row: string[], headers: string[]): any {
+  const record: any = {};
+  
+  headers.forEach((header, index) => {
+    const normalizedHeader = header.toLowerCase().trim();
+    const value = row[index] || '';
+    
+    // Map headers to SOTI fields - handle exact column names A-Q
+    switch (normalizedHeader) {
+      case 'nombre_dispositivo':
+        record.nombre_dispositivo = value;
+        break;
+      case 'usuario_asignado':
+        record.usuario_asignado = value;
+        break;
+      case 'modelo':
+        record.modelo = value;
+        break;
+      case 'imei':
+        record.imei = value;
+        break;
+      case 'ruta':
+        record.ruta = value;
+        break;
+      case 'hora_registro':
+        record.hora_registro = value;
+        break;
+      case 'hora_inscripcion':
+        record.hora_inscripcion = value;
+        break;
+      case 'fecha_conexion':
+        record.fecha_conexion = value;
+        break;
+      case 'fecha_desconexion':
+        record.fecha_desconexion = value;
+        break;
+      case 'telefono':
+        record.telefono = value;
+        break;
+      case 'bssid_red':
+        record.bssid_red = value;
+        break;
+      case 'ssid_red':
+        record.ssid_red = value;
+        break;
+      case 'id_ticket_jira':
+        record.id_ticket_jira = value;
+        break;
+      case 'telefono_custom':
+        record.telefono_custom = value;
+        break;
+      case 'correo_custom':
+        record.correo_custom = value;
+        break;
+      case 'correo_android_enterprise':
+        record.correo_android_enterprise = value;
+        break;
+      case 'ubicacion':
+        record.ubicacion = value;
+        break;
+      default:
+        // Log unmapped headers for debugging
+        console.log(`Unmapped SOTI header: "${header}" (normalized: "${normalizedHeader}")`);
+        break;
+    }
+  });
+  
+  return record;
+}
+
 // Get BASE sheet data specifically
 export async function getBaseSheetData(): Promise<SheetDataRaw> {
   try {
@@ -133,6 +203,31 @@ export async function getBaseSheetData(): Promise<SheetDataRaw> {
 
     // Skip first row (extra headers), use second row as headers, data starts from third row
     const [_extraHeaders, headers, ...rows] = data;
+    
+    return {
+      headers: headers as string[],
+      rows: rows as string[][],
+      totalRecords: rows.length,
+      lastUpdated: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error('Error fetching BASE sheet data:', error);
+    throw error;
+  }
+}
+
+export async function getSotiSheetData(): Promise<SheetDataRaw> {
+  try {
+    const data = await getSheetData('SOTI!A:Q'); 
+    
+
+
+    if (data.length < 3) {
+      return { headers: [], rows: [], totalRecords: 0, lastUpdated: new Date().toISOString() };
+    }
+
+    // Skip first row (extra headers), use second row as headers, data starts from third row
+    const [ headers, ...rows] = data;
     
     return {
       headers: headers as string[],
@@ -281,6 +376,31 @@ export async function getIMEIRecords(): Promise<IMEIRecord[]> {
     return records;
   } catch (error) {
     console.error('Error processing IMEI records:', error);
+    throw error;
+  }
+}
+
+export async function getSOTIDevices(): Promise<any[]> {
+  try {
+    const sheetData = await getSotiSheetData();
+    
+    // Debug: log the actual headers received
+    console.log('Headers received from sheet:', sheetData.headers);
+    console.log('Number of data rows:', sheetData.rows.length);
+    
+    // Process each row
+    const records = sheetData.rows.map((row, index) => {
+      if (index === 0) {
+        // Debug: log first row mapping
+        console.log('First row data:', row);
+        console.log('Row length:', row.length, 'Headers length:', sheetData.headers.length);
+      }
+      return convertRowToSOTIRecord(row, sheetData.headers);
+    });
+    
+    return records;
+  } catch (error) {
+    console.error('Error processing SOTI records:', error);
     throw error;
   }
 }

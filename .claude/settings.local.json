@@ -7,7 +7,11 @@
       "mcp__context7__get-library-docs",
       "Bash(bunx:*)",
       "Bash(npx tsc:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Read(/C:\\Users\\patri\\Dev\\main\\DESA\\DESArregui\\src\\lib/**)",
+      "Read(/C:\\Users\\patri\\Dev\\main\\DESA\\DESArregui\\src\\lib/**)",
+      "Read(/C:\\Users\\patri\\Dev\\main\\DESA\\DESArregui\\src\\app\\api\\soti/**)",
+      "Read(/C:\\Users\\patri\\Dev\\main\\DESA\\DESArregui\\src\\app\\(dashboard)\\soti/**)"
     ],
     "deny": []
   }
