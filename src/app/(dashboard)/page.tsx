@@ -22,8 +22,4 @@ export default function Page(){
         router.push('/soti')
         return <></>
     }
-
-    return (
-    <div>page</div>
-    )
 }
