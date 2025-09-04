@@ -234,11 +234,11 @@ export default function SOTI() {
                 <Table.Head id="nombre_dispositivo" label="Dispositivo" isRowHeader allowsSorting />
                 <Table.Head id="usuario_asignado" label="Usuario" allowsSorting />
                 <Table.Head id="modelo" label="Modelo" allowsSorting />
+                <Table.Head id="id_ticket_jira" label="Ticket" allowsSorting className="hidden lg:table-cell" />
                 <Table.Head id="imei" label="IMEI" allowsSorting className="w-40" />
                 <Table.Head id="telefono" label="Teléfono" allowsSorting />
                 <Table.Head id="fecha_conexion" label="Estado" allowsSorting className="w-32" />
                 <Table.Head id="ubicacion" label="Ubicación" allowsSorting className="hidden xl:table-cell" />
-                <Table.Head id="id_ticket_jira" label="Ticket" allowsSorting className="hidden lg:table-cell" />
                 <Table.Head id="actions" className="w-20" />
               </Table.Header>
 
@@ -248,23 +248,13 @@ export default function SOTI() {
                     <Table.Cell>
                       <div className="flex flex-col">
                         <span className="font-medium text-primary">{item.nombre_dispositivo || "-"}</span>
-                        <span className="text-xs text-secondary">{getRutaName(item.ruta)}</span>
+                        <span className="text-xs text-secondary">{getRutaName(item.ruta).replace('\\','/') }</span>
                       </div>
                     </Table.Cell>
                     <Table.Cell>
                       <span className="font-medium text-gray-200">{item.usuario_asignado || "-"}</span>
                     </Table.Cell>
                     <Table.Cell className="whitespace-nowrap">{item.modelo || "-"}</Table.Cell>
-                    <Table.Cell>
-                      <span className="font-mono text-xs">{item.imei || "-"}</span>
-                    </Table.Cell>
-                    <Table.Cell>{item.telefono || "-"}</Table.Cell>
-                    <Table.Cell className="whitespace-nowrap text-sm">
-                      {getConnectionStatus(item.fecha_conexion, item.fecha_desconexion)}
-                    </Table.Cell>
-                    <Table.Cell className="whitespace-nowrap hidden xl:table-cell">
-                      {item.ubicacion || "-"}
-                    </Table.Cell>
                     <Table.Cell className="whitespace-nowrap hidden lg:table-cell">
                       <BadgeWithDot type="modern" color={
                         item.id_ticket_jira ? "success" : 
@@ -275,6 +265,17 @@ export default function SOTI() {
                         {item.id_ticket_jira || "Sin ticket" }
                       </BadgeWithDot>
                     </Table.Cell>
+                    <Table.Cell>
+                      <span className="font-mono text-xs">{item.imei || "-"}</span>
+                    </Table.Cell>
+                    <Table.Cell>{item.telefono || "-"}</Table.Cell>
+                    <Table.Cell className="whitespace-nowrap text-sm">
+                      {getConnectionStatus(item.fecha_conexion, item.fecha_desconexion)}
+                    </Table.Cell>
+                    <Table.Cell className="whitespace-nowrap hidden xl:table-cell">
+                      {item.ubicacion || "-"}
+                    </Table.Cell>
+                    
                     <Table.Cell className="px-3">
                       <div className="flex justify-end gap-0.5">
                         <ButtonUtility 
