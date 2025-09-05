@@ -140,3 +140,99 @@ export interface TelefonosTicketsFilters {
 
 // Utility type for converting raw sheet data to typed records
 export type SheetRowToRecord<T> = (row: string[], headers: string[]) => T;
+
+// ==================== LLAMADOS TELEFÓNICOS MODULE ====================
+// Ver docs/call_reports_module.md
+
+export interface CallReportRecord {
+  tipo: string;
+  origen: string;
+  destino: string;
+  persona: string;
+  inicio: string;
+  duracion: number;
+  categoria: string;
+  resultado: string;
+  operador: string;                // Operator who handled the call
+}
+
+// Monthly Summary for an operator
+export interface OperatorMonthlySummary {
+  operador: string;
+  mes: string;  
+  total_llamadas: number;
+  duracion_total: number;  
+  duracion_promedio: number;  
+  llamadas_por_categoria: { [categoria: string]: number };
+  llamadas_por_resultado: { [resultado: string]: number };
+  llamadas_por_tipo: { [tipo: string]: number };
+}
+
+// Call Reports Analytics - KPIs and metrics
+export interface CallReportsAnalytics {
+  periodo: {
+    inicio: string;
+    fin: string;
+  };
+  metricas_globales: {
+    total_llamadas: number;
+    duracion_total: number;
+    duracion_promedio: number;
+    promedio_llamadas_diarias: number;
+  };
+  por_operador: OperatorMonthlySummary[];
+  por_categoria: { [key: string]: number };
+  por_resultado: { [key: string]: number };
+  por_tipo: { [key: string]: number };
+  tendencias_temporales: { 
+    fecha: string; 
+    llamadas: number; 
+    duracion_total: number;
+    duracion_promedio: number;
+  }[];
+  ranking_operadores: {
+    operador: string;
+    puntuacion: number;
+    metricas: {
+      volumen_llamadas: number;
+      eficiencia_tiempo: number;
+      variedad_categorias: number;
+    };
+  }[];
+}
+
+// Monthly Sheet Info - For handling multiple month sheets
+export interface MonthlySheetInfo {
+  nombre_hoja: string;  
+  mes: number;  
+  año: number;  
+  total_registros: number;
+  ultima_actualizacion: string;
+}
+
+// Call Reports API Response
+export interface CallReportsResponse {
+  success: boolean;
+  data?: CallReportRecord[];
+  analytics?: CallReportsAnalytics;
+  hojas_disponibles?: MonthlySheetInfo[];
+  headers?: string[];
+  totalRecords?: number;
+  lastUpdated?: string;
+  error?: string;
+}
+
+// Filtering options for Call Reports
+export interface CallReportsFilters {
+  periodo?: {
+    inicio: string;
+    fin: string;
+  };
+  operadores?: string[];
+  tipos?: string[];
+  categorias?: string[];
+  resultados?: string[];
+  duracion_min?: number;
+  duracion_max?: number;
+  searchKeyword?: string;
+}

@@ -13,6 +13,7 @@
 !.yarn/releases
 !.yarn/versions
 .env.local
+package-lock.json
 
 # testing
 /coverage
