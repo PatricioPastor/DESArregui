@@ -12,6 +12,7 @@ import { Button } from "@/components/base/buttons/button";
 import { RadioButtonBase } from "@/components/base/radio-buttons/radio-buttons";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
 import { cx } from "@/utils/cx";
+import { useSession } from "@/lib/auth-client";
 
 type NavAccountType = {
     /** Unique identifier for the nav item. */
@@ -166,21 +167,24 @@ export const NavAccountCard = ({
     const triggerRef = useRef<HTMLDivElement>(null);
     const isDesktop = useBreakpoint("lg");
 
-    const selectedAccount = placeholderAccounts.find((account) => account.id === selectedAccountId);
+    // const selectedAccount = placeholderAccounts.find((account) => account.id === selectedAccountId);
 
-    if (!selectedAccount) {
-        console.warn(`Account with ID ${selectedAccountId} not found in <NavAccountCard />`);
-        return null;
-    }
+    // if (!selectedAccount) {
+    //     console.warn(`Account with ID ${selectedAccountId} not found in <NavAccountCard />`);
+    //     return null;
+    // }
+
+    const {data} = useSession()
+    
 
     return (
         <div ref={triggerRef} className="relative flex items-center gap-3 rounded-xl p-3 ring-1 ring-secondary ring-inset">
             <AvatarLabelGroup
                 size="md"
-                src={selectedAccount.avatar}
-                title={selectedAccount.name}
-                subtitle={selectedAccount.email}
-                status={selectedAccount.status}
+                src={data?.user.image}
+                title={data!.user.name}
+                subtitle={data!.user.email}
+                status={data!.user.emailVerified ? "online" : "offline"}
             />
 
             <div className="absolute top-1.5 right-1.5">

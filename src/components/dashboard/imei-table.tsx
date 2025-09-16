@@ -19,7 +19,7 @@ import { cx } from "@/utils/cx";
 type FilterType = "all" | "activos" | "inactivos";
 
 // Memoized table row component for better performance
-const TableRow = memo<{ item: IMEIRecord; formatDate: (date: string) => string; getStatusBadge: (status: string) => JSX.Element; getDistribuidoraName: (path: string) => string; onEdit: (record: IMEIRecord) => void; isUpdating: boolean }>(({ 
+const TableRow = memo<{ item: IMEIRecord; formatDate: (date: string) => string; getStatusBadge: (status: string) => any; getDistribuidoraName: (path: string) => string; onEdit: (record: IMEIRecord) => void; isUpdating: boolean }>(({ 
   item, 
   formatDate, 
   getStatusBadge, 

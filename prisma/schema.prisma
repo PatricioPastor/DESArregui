@@ -1,17 +1,17 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["multiSchema"]
-  output          = "../src/generated/prisma"
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["main_auth", "phones"]
+  schemas  = ["main_auth", "phones", "support"]
 }
 
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+// ========================
+// SCHEMA: main_auth (igual que antes, no lo toco)
+// ========================
 
 model User {
   id            String    @id
@@ -70,14 +70,18 @@ model Verification {
   identifier String
   value      String
   expiresAt  DateTime
-  createdAt  DateTime?
-  updatedAt  DateTime?
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
 
   @@map("verification")
   @@schema("main_auth")
 }
 
-enum DeviceStatus {
+// ========================
+// SCHEMA: phones
+// ========================
+
+enum device_status {
   IN_STOCK
   ASSIGNED
   SOLD
@@ -88,87 +92,137 @@ enum DeviceStatus {
   @@schema("phones")
 }
 
-model PhoneModel {
-  id        String  @id @default(cuid())
-  brand     String
-  model     String
-  storageGb Int?
-  color     String?
-  sku       String?
+model phone_model {
+  id         String   @id @default(cuid())
+  brand      String
+  model      String
+  storage_gb Int?
+  color      String?  @default("")
 
-  devices Device[]
+  sku        String?
+  devices    device[]
 
-  @@unique([brand, model, storageGb, color])
+  @@unique([brand, model, storage_gb, color])
   @@map("phone_model")
   @@schema("phones")
 }
 
-model Distributor {
-  id        String     @id @default(cuid())
-  name      String     @unique
-  devices   Device[]
-  purchases Purchase[]
+model distributor {
+  id        String      @id @default(cuid())
+  name      String      @unique
+  devices   device[]
+  purchases purchase[]
 
   @@map("distributor")
   @@schema("phones")
 }
 
-model Purchase {
-  id            String      @id @default(cuid())
-  distributorId String
-  distributor   Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  purchasedAt   DateTime    @default(now())
-  currency      String      @default("ARS")
-  invoiceNumber String?
+model purchase {
+  id             String      @id @default(cuid())
+  distributor_id String
+  distributor    distributor @relation(fields: [distributor_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  purchased_at   DateTime    @default(now())
+  currency       String      @default("ARS")
+  invoice_number String?
 
-  devices Device[]
+  devices device[]
 
-  @@index([distributorId])
+  @@index([distributor_id])
   @@map("purchase")
   @@schema("phones")
 }
 
-model Device {
-  id      String     @id @default(cuid())
-  imei    String     @unique
-  modelId String
-  model   PhoneModel @relation(fields: [modelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+model device {
+  id             String       @id @default(cuid())
+  imei           String       @unique
+  model_id       String
+  model          phone_model  @relation(fields: [model_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
-  distributorId String?
-  distributor   Distributor? @relation(fields: [distributorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  distributor_id String?
+  distributor    distributor? @relation(fields: [distributor_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
-  purchaseId String?
-  purchase   Purchase? @relation(fields: [purchaseId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  purchase_id String?
+  purchase    purchase? @relation(fields: [purchase_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
-  status DeviceStatus @default(IN_STOCK)
+  status device_status @default(IN_STOCK)
 
-  // MVP links (no FK a otros esquemas para mantenerlo simple)
-  assignedTo String? // persona/usuario
-  ticketId   String? // id de ticket externo
+  assigned_to String?
+  ticket_id   String?
 
-  assignments Assignment[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  assignments assignment[]
+  created_at  DateTime     @default(now())
+  updated_at  DateTime     @updatedAt
 
-  @@index([modelId])
+  @@index([model_id])
   @@index([status])
-  @@index([assignedTo])
-  @@index([ticketId])
+  @@index([assigned_to])
+  @@index([ticket_id])
   @@map("device")
   @@schema("phones")
 }
 
-model Assignment {
-  id       String @id @default(cuid())
-  deviceId String
-  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+model assignment {
+  id          String  @id @default(cuid())
+  device_id   String
+  device      device  @relation(fields: [device_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  type       String // "ASSIGN" | "UNASSIGN"
-  assignedTo String?
-  ticketId   String?
-  at         DateTime @default(now())
+  type        assignment_type
+  assigned_to String?
+  ticket_id   String?
+  at          DateTime @default(now())
 
-  @@index([deviceId, at])
+  @@index([device_id, at])
   @@map("assignment")
   @@schema("phones")
+}
+
+enum assignment_type {
+  ASSIGN
+  UNASSIGN
+
+  @@schema("support")
+}
+
+// ========================
+// NUEVOS MODELOS: incidents y procedures
+// ========================
+
+model incident {
+  id          String       @id @default(cuid())
+  name        String
+  type        String
+  description String?
+  created_at  DateTime     @default(now())
+  updated_at  DateTime     @updatedAt
+
+  // relación a procedimientos
+  procedures incident_procedure[]
+
+  @@map("incident")
+  @@schema("support")
+}
+
+model procedure {
+  id          String       @id @default(cuid())
+  title       String
+  content     String       // descripción detallada o pasos
+  created_at  DateTime     @default(now())
+  updated_at  DateTime     @updatedAt
+
+  incidents incident_procedure[]
+
+  @@map("procedure")
+  @@schema("support")
+}
+
+// tabla pivot para relación M:N
+model incident_procedure {
+  incident_id  String
+  procedure_id String
+  incident     incident  @relation(fields: [incident_id], references: [id], onDelete: Cascade)
+  procedure    procedure @relation(fields: [procedure_id], references: [id], onDelete: Cascade)
+
+  @@id([incident_id, procedure_id])
+  @@map("incident_procedure")
+  @@schema("support")
 }
