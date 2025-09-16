@@ -241,7 +241,7 @@ export function StockTable() {
                 Agregar Stock
               </Button>
               <Button
-                color="warning"
+                color="secondary"
                 size="md"
                 iconLeading={Database01}
                 onClick={handleSync}
