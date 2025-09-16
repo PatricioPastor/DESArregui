@@ -4,6 +4,7 @@
 import { SidebarNavigationSimple } from "@/components/application/app-navigation/sidebar-navigation/sidebar-simple";
 import { Header } from "@/components/application/navigation/main-nav";
 import { BarChart03, Home01, Package } from "@untitledui/icons";
+import { usePathname } from "next/navigation";
 
 
 const navigation = [
@@ -18,11 +19,14 @@ export default function layout({
 }: Readonly<{
     children: React.ReactNode;
 }>) {
+
+    const pathname = usePathname()
+
     return (
         <div className="relative min-h-dvh w-full">
             {/* <Header /> */}
             
-            <SidebarNavigationSimple items={navigation} />
+            <SidebarNavigationSimple items={navigation} activeUrl={pathname} />
 
             <main className="px-6 py-6 max-h-screen max-w-7xl mx-auto pt-24 pl-[312px]">
                 {/* <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-3xl border border-white/10 bg-black/30 backdrop-blur-sm"> */}

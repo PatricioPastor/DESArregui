@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Edit01, FilterLines, RefreshCw01, SearchLg, Trash01, Plus } from "@untitledui/icons";
+import { Edit01, FilterLines, RefreshCw01, SearchLg, Trash01, Plus, Database01 } from "@untitledui/icons";
 import type { Key, SortDescriptor } from "react-aria-components";
 import { PaginationCardMinimal } from "@/components/application/pagination/pagination";
 import { Table, TableCard, TableRowActionsDropdown } from "@/components/application/table/table";
@@ -28,6 +28,7 @@ export function StockTable() {
   const [pageSize] = useState(50);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const { data, isLoading, error, lastUpdated, totalRecords, refresh } = useFilteredStockData(searchQuery);
 
@@ -169,6 +170,43 @@ export function StockTable() {
     }
   };
 
+  const handleSync = async () => {
+    try {
+      setIsSyncing(true);
+
+      const response = await fetch('/api/stock/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al sincronizar');
+      }
+
+      const result = await response.json();
+
+      // Show success message with stats
+      alert(`Sincronización completada:\n` +
+            `• Creados: ${result.stats.created}\n` +
+            `• Actualizados: ${result.stats.updated}\n` +
+            `• Modelos creados: ${result.stats.createdModels}\n` +
+            `• Distribuidoras creadas: ${result.stats.createdDistributors}\n` +
+            `• Errores: ${result.stats.errors}`);
+
+      // Refresh the data after successful sync
+      await refresh();
+
+    } catch (error) {
+      console.error('Error syncing stock:', error);
+      alert(error instanceof Error ? error.message : 'Error al sincronizar con la base de datos');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   if (error) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -193,21 +231,30 @@ export function StockTable() {
           description={lastUpdated ? `Última actualización: ${formatDate(lastUpdated)}` : undefined}
           contentTrailing={
             <div className="absolute top-5 right-4 md:right-6 flex items-center justify-end gap-3">
-              <Button 
-                color="primary" 
-                size="md" 
-                iconLeading={Plus} 
+              <Button
+                color="primary"
+                size="md"
+                iconLeading={Plus}
                 onClick={() => setIsAddModalOpen(true)}
-                disabled={isLoading || isSaving}
+                disabled={isLoading || isSaving || isSyncing}
               >
                 Agregar Stock
               </Button>
-              <Button 
-                color="secondary" 
-                size="md" 
-                iconLeading={RefreshCw01} 
+              <Button
+                color="warning"
+                size="md"
+                iconLeading={Database01}
+                onClick={handleSync}
+                disabled={isLoading || isSaving || isSyncing}
+              >
+                {isSyncing ? "Sincronizando..." : "Sincronizar DB"}
+              </Button>
+              <Button
+                color="secondary"
+                size="md"
+                iconLeading={RefreshCw01}
                 onClick={refresh}
-                disabled={isLoading || isSaving}
+                disabled={isLoading || isSaving || isSyncing}
               >
                 {isLoading ? "Actualizando..." : "Actualizar"}
               </Button>
