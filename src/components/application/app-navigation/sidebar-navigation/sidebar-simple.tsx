@@ -10,6 +10,7 @@ import { NavAccountCard } from "../base-components/nav-account-card";
 import { NavItemBase } from "../base-components/nav-item";
 import { NavList } from "../base-components/nav-list";
 import type { NavItemType } from "../config";
+import Image from "next/image";
 
 interface SidebarNavigationProps {
     /** URL of the currently active item. */
@@ -53,7 +54,8 @@ export const SidebarNavigationSimple = ({
             )}
         >
             <div className="flex flex-col gap-5 px-4 lg:px-5">
-                <UntitledLogo className="h-8" />
+                {/* <UntitledLogo className="h-8" /> */}
+                <Image alt="Desarregui" src="./desarregui.svg" width={100} height={60} />
                 <Input shortcut size="sm" aria-label="Search" placeholder="Search" icon={SearchLg} />
             </div>
 

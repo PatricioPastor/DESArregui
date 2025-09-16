@@ -174,8 +174,11 @@ export const NavAccountCard = ({
     //     return null;
     // }
 
-    const {data} = useSession()
+    const {data, isPending} = useSession()
     
+    if (isPending) {
+        return null
+    }
 
     return (
         <div ref={triggerRef} className="relative flex items-center gap-3 rounded-xl p-3 ring-1 ring-secondary ring-inset">
