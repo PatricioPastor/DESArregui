@@ -21,6 +21,7 @@ export const NavList = ({ activeUrl, items, className }: NavListProps) => {
 
     return (
         <ul className={cx("mt-4 flex flex-col px-2 lg:px-4", className)}>
+
             {items.map((item, index) => {
                 if (item.divider) {
                     return (
@@ -72,7 +73,7 @@ export const NavList = ({ activeUrl, items, className }: NavListProps) => {
                             badge={item.badge}
                             icon={item.icon}
                             href={item.href}
-                            current={currentItem?.href === item.href}
+                            current={activeUrl === item.href}
                             open={open && currentItem?.href === item.href}
                         >
                             {item.label}
