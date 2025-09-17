@@ -185,9 +185,9 @@ export const NavAccountCard = ({
             <AvatarLabelGroup
                 size="md"
                 src={data?.user.image}
-                title={data!.user.name}
-                subtitle={data!.user.email}
-                status={data!.user.emailVerified ? "online" : "offline"}
+                title={data?.user.name}
+                subtitle={data?.user.email}
+                status={data?.user?.emailVerified ? "online" : "offline"}
             />
 
             <div className="absolute top-1.5 right-1.5">
