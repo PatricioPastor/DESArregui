@@ -1,125 +1,208 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStockRecords, getStockSheetData } from '@/lib/sheets';
+import type { StockRecord } from '@/lib/types';
 import { PrismaClient } from '@/generated/prisma';
 import type { StockSheetResponse } from '@/lib/types';
 
 const prisma = new PrismaClient();
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // Check if required environment variables are set
-    if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY || !process.env.GOOGLE_SHEET_ID) {
-      return NextResponse.json<StockSheetResponse>(
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get('search');
+
+    // Build search conditions
+    const whereConditions: any = {};
+
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
+      whereConditions.OR = [
+        // Search by IMEI
         {
-          success: false,
-          error: 'Missing required Google Sheets configuration. Check environment variables.',
+          imei: {
+            contains: searchTerm,
+            mode: 'insensitive'
+          }
         },
-        { status: 500 }
-      );
+        // Search by assigned name
+        {
+          assigned_to: {
+            contains: searchTerm,
+            mode: 'insensitive'
+          }
+        },
+        // Search by ticket
+        {
+          ticket_id: {
+            contains: searchTerm,
+            mode: 'insensitive'
+          }
+        },
+        // Search by model brand
+        {
+          model: {
+            brand: {
+              contains: searchTerm,
+              mode: 'insensitive'
+            }
+          }
+        },
+        // Search by model name
+        {
+          model: {
+            model: {
+              contains: searchTerm,
+              mode: 'insensitive'
+            }
+          }
+        },
+        // Search by distributor name
+        {
+          distributor: {
+            name: {
+              contains: searchTerm,
+              mode: 'insensitive'
+            }
+          }
+        }
+      ];
     }
 
-    // Fetch and process stock records from Google Sheets
-    const stockRecords = await getStockRecords();
-    const sheetData = await getStockSheetData();
+    // Fetch stock records from database
+    const devices = await prisma.device.findMany({
+      where: whereConditions,
+      include: {
+        model: true,
+        distributor: true,
+      },
+      orderBy: {
+        created_at: 'desc'
+      }
+    });
 
-    // Return successful response
+    // Convert database records to StockRecord format
+    const stockRecords: StockRecord[] = devices.map(device => ({
+      modelo: `${device.model.brand} ${device.model.model}`.trim(),
+      imei: device.imei,
+      distribuidora: device.distributor?.name || "",
+      asignado_a: device.assigned_to || "",
+      ticket: device.ticket_id || "",
+      raw: {...device}
+    }));
+
     const response: StockSheetResponse = {
       success: true,
       data: stockRecords,
-      headers: sheetData.headers,
+      headers: ['modelo', 'imei', 'distribuidora', 'asignado_a', 'ticket'],
       totalRecords: stockRecords.length,
-      lastUpdated: sheetData.lastUpdated,
+      lastUpdated: new Date().toISOString(),
     };
 
     return NextResponse.json(response);
 
   } catch (error) {
-    console.error('API Error fetching STOCK sheet data:', error);
-    
+    console.error('API Error fetching stock data from database:', error);
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    
+
     return NextResponse.json<StockSheetResponse>(
       {
         success: false,
-        error: `Failed to fetch STOCK sheet data: ${errorMessage}`,
+        error: `Failed to fetch stock data from database: ${errorMessage}`,
       },
       { status: 500 }
     );
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { imei, modelo, distribuidora } = body;
+    const { imei, modelo, distribuidora, asignado_a, ticket } = body;
 
-    if (!imei || !modelo) {
+    // Validación básica
+    if (!imei || !modelo || !distribuidora) {
       return NextResponse.json(
-        { success: false, error: "IMEI and modelo are required" },
+        { success: false, error: "IMEI, modelo y distribuidora son obligatorios" },
         { status: 400 }
       );
     }
 
-    // Extract model info
-    const modelParts = modelo.split(" ");
-    const brand = modelParts.length > 1 ? modelParts[0] : "Unknown";
-    const model = modelParts.length > 1 ? modelParts.slice(1).join(" ") : modelo;
+    // Verificar si el IMEI ya existe
+    const existingDevice = await prisma.device.findUnique({
+      where: { imei: imei }
+    });
 
-    // Create or find phone model
-    let phoneModel = await prisma.phone_model.findFirst({
+    if (existingDevice) {
+      return NextResponse.json(
+        { success: false, error: `El IMEI ${imei} ya está registrado en el sistema` },
+        { status: 409 }
+      );
+    }
+
+    // Buscar modelo que coincida con el valor seleccionado en el Select
+    // Obtenemos todos los modelos y generamos el mismo formato que en /api/models
+    const model = await prisma.phone_model.findFirst({
       where: {
-        brand: brand,
-        model: model
+        id: {
+          equals: modelo,
+          
+        }
       }
     });
 
-    if (!phoneModel) {
-      phoneModel = await prisma.phone_model.create({
-        data: {
-          brand: brand,
-          model: model,
-          storage_gb: null,
-          color: ""
+    if (!model) {
+      return NextResponse.json(
+        { success: false, error: `El modelo "${modelo}" no existe en el sistema. Debe crear el modelo primero.` },
+        { status: 404 }
+      );
+    }
+
+    // Buscar distribuidora existente
+    const distributorRecord = await prisma.distributor.findFirst({
+      where: {
+        id: {
+          equals: distribuidora,
+          
         }
-      });
+      }
+    });
+
+    if (!distributorRecord) {
+      return NextResponse.json(
+        { success: false, error: `La distribuidora "${distribuidora}" no existe en el sistema. Debe crear la distribuidora primero.` },
+        { status: 404 }
+      );
     }
 
-    // Create or find distributor
-    let distributorRecord = null;
-    if (distribuidora && distribuidora.trim()) {
-      let distributorName = distribuidora;
-      if (distributorName.startsWith("\\\\")) {
-        const pathParts = distributorName.substring(2).split("\\");
-        distributorName = pathParts[0] || distributorName;
-      }
-
-      distributorRecord = await prisma.distributor.findUnique({
-        where: { name: distributorName }
-      });
-
-      if (!distributorRecord) {
-        distributorRecord = await prisma.distributor.create({
-          data: { name: distributorName }
-        });
-      }
-    }
-
-    // Create device
+    // Crear dispositivo solo si modelo y distribuidora existen
     const device = await prisma.device.create({
       data: {
-        imei: imei,
-        model_id: phoneModel.id,
-        distributor_id: distributorRecord?.id,
+        imei: imei.trim(),
+        model_id: model.id,
+        distributor_id: distributorRecord.id,
         status: "IN_STOCK",
-        assigned_to: null,
-        ticket_id: null
+        assigned_to: asignado_a?.trim() || null,
+        ticket_id: ticket?.trim() || null
+      },
+      include: {
+        model: true,
+        distributor: true
       }
     });
 
     return NextResponse.json({
       success: true,
-      message: "Device created successfully",
-      device
+      message: "Dispositivo creado exitosamente",
+      device: {
+        id: device.id,
+        imei: device.imei,
+        modelo: `${device.model.brand} ${device.model.model}`.trim(),
+        distribuidora: device.distributor!.name,
+        asignado_a: device.assigned_to,
+        ticket: device.ticket_id
+      }
     });
 
   } catch (error) {

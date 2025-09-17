@@ -4,6 +4,7 @@ import { RouteProvider } from "@/providers/router-provider";
 import { Theme } from "@/providers/theme";
 import { Header } from "@/components/application/navigation/main-nav";
 import "@/styles/globals.css";
+import { Toaster } from "sonner";
 import { cx } from "@/utils/cx";
 import '@/utils/chart-setup';
 
@@ -31,6 +32,7 @@ export default function RootLayout({
     return (
         <html lang="es" suppressHydrationWarning>
             <body className={cx(inter.variable, "bg-app antialiased min-h-screen")}>
+                <Toaster richColors theme="dark"/>
                 <RouteProvider>
                     <Theme>
                         

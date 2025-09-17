@@ -11,9 +11,10 @@ import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { Input } from "@/components/base/input/input";
 import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
 import { useFilteredStockData } from "@/hooks/use-stock-data";
-import { AddStockModal } from "./AddStockModal";
+import { CreateStockModal } from "@/features/stock/components/create/create-stock-modal";
 import type { StockRecord } from "@/lib/types";
 import { cx } from "@/utils/cx";
+import { toast } from "sonner";
 
 type FilterType = "all" | "disponibles" | "asignados";
 
@@ -27,7 +28,6 @@ export function StockTable() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
   const { data, isLoading, error, lastUpdated, totalRecords, refresh } = useFilteredStockData(searchQuery);
@@ -135,44 +135,13 @@ export function StockTable() {
     );
   };
 
-  const handleAddStock = async (stockData: {
-    imei: string;
-    modelo: string;
-    distribuidora: string;
-  }) => {
-    try {
-      setIsSaving(true);
-      
-      const response = await fetch('/api/stock', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(stockData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error al guardar el dispositivo');
-      }
-
-      // Refresh the data after successful save
-      await refresh();
-      
-      return true;
-    } catch (error) {
-      console.error('Error saving stock:', error);
-      // You can add toast notification here
-      alert(error instanceof Error ? error.message : 'Error al guardar el dispositivo');
-      return false;
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   const handleSync = async () => {
     try {
       setIsSyncing(true);
+
+      // Show loading toast
+      const loadingToast = toast.loading('Sincronizando con Google Sheets...');
 
       const response = await fetch('/api/stock/sync', {
         method: 'POST',
@@ -181,6 +150,9 @@ export function StockTable() {
         },
       });
 
+      // Dismiss loading toast
+      toast.dismiss(loadingToast);
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Error al sincronizar');
@@ -188,20 +160,18 @@ export function StockTable() {
 
       const result = await response.json();
 
-      // Show success message with stats
-      alert(`Sincronización completada:\n` +
-            `• Creados: ${result.stats.created}\n` +
-            `• Actualizados: ${result.stats.updated}\n` +
-            `• Modelos creados: ${result.stats.createdModels}\n` +
-            `• Distribuidoras creadas: ${result.stats.createdDistributors}\n` +
-            `• Errores: ${result.stats.errors}`);
+      // Show success toast with detailed stats
+      toast.success(`Sincronización completada`, {
+        description: `Creados: ${result.stats.created} • Actualizados: ${result.stats.updated} • Modelos: ${result.stats.createdModels} • Distribuidoras: ${result.stats.createdDistributors} • Errores: ${result.stats.errors}`,
+        duration: 5000
+      });
 
       // Refresh the data after successful sync
       await refresh();
 
     } catch (error) {
       console.error('Error syncing stock:', error);
-      alert(error instanceof Error ? error.message : 'Error al sincronizar con la base de datos');
+      toast.error(error instanceof Error ? error.message : 'Error al sincronizar con la base de datos');
     } finally {
       setIsSyncing(false);
     }
@@ -236,7 +206,7 @@ export function StockTable() {
                 size="md"
                 iconLeading={Plus}
                 onClick={() => setIsAddModalOpen(true)}
-                disabled={isLoading || isSaving || isSyncing}
+                disabled={isLoading || isSyncing}
               >
                 Agregar Stock
               </Button>
@@ -245,7 +215,7 @@ export function StockTable() {
                 size="md"
                 iconLeading={Database01}
                 onClick={handleSync}
-                disabled={isLoading || isSaving || isSyncing}
+                disabled={isLoading || isSyncing}
               >
                 {isSyncing ? "Sincronizando..." : "Sincronizar DB"}
               </Button>
@@ -254,7 +224,7 @@ export function StockTable() {
                 size="md"
                 iconLeading={RefreshCw01}
                 onClick={refresh}
-                disabled={isLoading || isSaving || isSyncing}
+                disabled={isLoading || isSyncing}
               >
                 {isLoading ? "Actualizando..." : "Actualizar"}
               </Button>
@@ -278,9 +248,9 @@ export function StockTable() {
             <Input
               icon={SearchLg}
               aria-label="Buscar dispositivos"
-              placeholder="Buscar IMEI, modelo, asignado..."
+              placeholder="Buscar por IMEI, nombre asignado, ticket, modelo o distribuidora..."
               value={searchQuery}
-              onChange={(e: any) => setSearchQuery(e.target.value)}
+              onChange={(val) => setSearchQuery(val)}
               className="w-full md:w-80"
             />
             <Button size="md" color="secondary" iconLeading={FilterLines}>
@@ -367,11 +337,10 @@ export function StockTable() {
         )}
       </TableCard.Root>
 
-      <AddStockModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSave={handleAddStock}
-        isLoading={isSaving}
+      <CreateStockModal
+        open={isAddModalOpen}
+        onOpenChange={setIsAddModalOpen}
+        onSuccess={refresh}
       />
     </div>
   );

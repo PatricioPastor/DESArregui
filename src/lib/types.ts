@@ -60,6 +60,7 @@ export interface StockRecord {
   distribuidora: string;
   asignado_a: string;
   ticket: string;
+  raw?: any; // Raw database record for additional data
 }
 
 // Stock API Response types
