@@ -12,7 +12,8 @@ import { Button } from "@/components/base/buttons/button";
 import { RadioButtonBase } from "@/components/base/radio-buttons/radio-buttons";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
 import { cx } from "@/utils/cx";
-import { useSession } from "@/lib/auth-client";
+import { signOut, useSession } from "@/lib/auth-client";
+import { useRouter } from "next/router";
 
 type NavAccountType = {
     /** Unique identifier for the nav item. */
@@ -51,6 +52,23 @@ export const NavAccountMenu = ({
 }: AriaDialogProps & { className?: string; accounts?: NavAccountType[]; selectedAccountId?: string }) => {
     const focusManager = useFocusManager();
     const dialogRef = useRef<HTMLDivElement>(null);
+
+    const router = useRouter()
+
+
+    const onSignOut = async () => {
+        await signOut({
+            fetchOptions: {
+                onSuccess: () => {
+                    router.push('/login');
+                },
+                onError: (error) => {
+                    console.error('Sign out error:', error);
+                }
+            }
+        });
+    };   
+
 
     const onKeyDown = useCallback(
         (e: KeyboardEvent) => {
@@ -118,7 +136,7 @@ export const NavAccountMenu = ({
             </div>
 
             <div className="pt-1 pb-1.5">
-                <NavAccountCardMenuItem label="Sign out" icon={LogOut01} shortcut="⌥⇧Q" />
+                <NavAccountCardMenuItem label="Sign out" onClick={onSignOut} icon={LogOut01}/>
             </div>
         </AriaDialog>
     );

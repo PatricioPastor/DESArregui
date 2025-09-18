@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-
-import MobileDevicesReport from '@/components/reports/MobileDevicesReport';
+import MobileDevicesReport from '@/components/reports/mobile-devices-report';
 
 // Components
 import { Button } from '@/components/base/buttons/button';
@@ -17,22 +16,35 @@ import { TelefonosDashboard } from './components/TelefonosDashboard';
 import type { TelefonosTicketsFilters } from '@/lib/types';
 import { useTelefonosTicketsData } from '@/hooks/use-telefonos-tickets-data';
 
+interface ReportsClientPageProps {
+  reportDate: string;
+  initialPeriod: string;
+  defaultEnterprises: string;
+  user: any;
+}
 
-export default function TelefonosTicketsDashboard() {
+export default function ReportsClientPage({
+  reportDate,
+  initialPeriod,
+  defaultEnterprises,
+  user
+}: ReportsClientPageProps) {
   const [viewMode, setViewMode] = useState<'dashboard' | 'report'>('dashboard');
+  const [sharedFilters, setSharedFilters] = useState<TelefonosTicketsFilters>({});
+  const [pendingFiltersForReport, setPendingFiltersForReport] = useState<TelefonosTicketsFilters | null>(null);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-app">
       {/* Mode Toggle Header */}
-      <div className="bg-white  dark:bg-app border-b border-gray-200 dark:border-gray-700 shadow-sm">
-        <div className="max-w-7xl mx-auto ">
+      <div className="bg-white dark:bg-app border-b border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
               <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                 Teléfonos y Tickets
               </h1>
             </div>
-            
+
             <div className="flex items-center space-x-2">
               <Button
                 color={viewMode === 'dashboard' ? 'primary' : 'secondary'}
@@ -44,7 +56,11 @@ export default function TelefonosTicketsDashboard() {
               <Button
                 color={viewMode === 'report' ? 'primary' : 'secondary'}
                 iconLeading={Download01}
-                onClick={() => setViewMode('report')}
+                onClick={() => {
+                  // Only transfer filters when explicitly switching to report view
+                  setPendingFiltersForReport(sharedFilters);
+                  setViewMode('report');
+                }}
               >
                 Reporte
               </Button>
@@ -55,19 +71,33 @@ export default function TelefonosTicketsDashboard() {
 
       {/* Content */}
       {viewMode === 'dashboard' ? (
-        <TelefonosDashboard />
+        <TelefonosDashboard
+          onFiltersChange={setSharedFilters}
+          currentFilters={sharedFilters}
+        />
       ) : (
-        <div className=" py-4">
-          <MobileDevicesReportWrapper />
+        <div className="py-4">
+          <MobileDevicesReportWrapper
+            inheritedFilters={pendingFiltersForReport}
+            onFiltersApplied={() => setPendingFiltersForReport(null)}
+            serverProps={{ reportDate, initialPeriod, defaultEnterprises }}
+          />
         </div>
       )}
     </div>
   );
 }
 
-
 // Wrapper component to provide analytics data to MobileDevicesReport
-function MobileDevicesReportWrapper() {
+function MobileDevicesReportWrapper({
+  inheritedFilters,
+  onFiltersApplied,
+  serverProps
+}: {
+  inheritedFilters: TelefonosTicketsFilters | null;
+  onFiltersApplied: () => void;
+  serverProps: { reportDate: string; initialPeriod: string; defaultEnterprises: string };
+}) {
   const {
     analytics,
     isLoading,
@@ -77,7 +107,17 @@ function MobileDevicesReportWrapper() {
   } = useTelefonosTicketsData();
 
   const [filters, setFilters] = useState<TelefonosTicketsFilters>({});
-  
+  const [hasInheritedFilters, setHasInheritedFilters] = useState(false);
+
+  // Apply inherited filters when switching to report view
+  // Use sync approach to avoid hydration mismatch
+  if (inheritedFilters && !hasInheritedFilters) {
+    setFilters(inheritedFilters);
+    applyFilters(inheritedFilters);
+    setHasInheritedFilters(true);
+    onFiltersApplied();
+  }
+
   // Apply the same date range handling as the dashboard
   const handleDateRangeChange = async (dates: any) => {
     if (!dates || !dates.start || !dates.end) {
@@ -87,15 +127,15 @@ function MobileDevicesReportWrapper() {
     try {
       const startDate = `${dates.start.year}-${dates.start.month.toString().padStart(2, '0')}-${dates.start.day.toString().padStart(2, '0')}`;
       const endDate = `${dates.end.year}-${dates.end.month.toString().padStart(2, '0')}-${dates.end.day.toString().padStart(2, '0')}`;
-      
+
       const newFilters = {
         ...filters,
         dateRange: { start: startDate, end: endDate }
       };
-      
+
       setFilters(newFilters);
       await applyFilters(newFilters);
-      
+
     } catch (error) {
       console.error('Error processing date range:', error);
     }
@@ -133,5 +173,12 @@ function MobileDevicesReportWrapper() {
     );
   }
 
-  return <MobileDevicesReport analytics={analytics} filters={filters} />;
+  return (
+    <MobileDevicesReport
+      analytics={analytics}
+      filters={filters}
+      hasInheritedFilters={hasInheritedFilters}
+      serverProps={serverProps}
+    />
+  );
 }

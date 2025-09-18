@@ -12,6 +12,12 @@ import { NavList } from "../base-components/nav-list";
 import type { NavItemType } from "../config";
 import Image from "next/image";
 
+const isRouteActive = (itemHref: string, activeUrl?: string): boolean => {
+    if (!activeUrl || !itemHref) return false;
+    if (itemHref === activeUrl) return true;
+    return activeUrl.startsWith(itemHref + '/');
+};
+
 interface SidebarNavigationProps {
     /** URL of the currently active item. */
     activeUrl?: string;
@@ -55,7 +61,7 @@ export const SidebarNavigationSimple = ({
         >
             <div className="flex flex-col gap-5 px-4 lg:px-5">
                 {/* <UntitledLogo className="h-8" /> */}
-                <Image alt="Desarregui" src="./desarregui.svg" width={100} height={60} />
+                <Image alt="Desarregui" src="/desarregui.svg" width={100} height={60} />
                 <Input shortcut size="sm" aria-label="Search" placeholder="Search" icon={SearchLg} />
             </div>
 
@@ -66,7 +72,7 @@ export const SidebarNavigationSimple = ({
                     <ul className="flex flex-col">
                         {footerItems.map((item) => (
                             <li key={item.label} className="py-0.5">
-                                <NavItemBase badge={item.badge} icon={item.icon} href={item.href} type="link" current={item.href === activeUrl}>
+                                <NavItemBase badge={item.badge} icon={item.icon} href={item.href} type="link" current={isRouteActive(item.href!, activeUrl)}>
                                     {item.label}
                                 </NavItemBase>
                             </li>

@@ -5,6 +5,12 @@ import { cx } from "@/utils/cx";
 import type { NavItemDividerType, NavItemType } from "../config";
 import { NavItemBase } from "./nav-item";
 
+const isRouteActive = (itemHref: string, activeUrl?: string): boolean => {
+    if (!activeUrl || !itemHref) return false;
+    if (itemHref === activeUrl) return true;
+    return activeUrl.startsWith(itemHref + '/');
+};
+
 interface NavListProps {
     /** URL of the currently active item. */
     activeUrl?: string;
@@ -16,7 +22,7 @@ interface NavListProps {
 
 export const NavList = ({ activeUrl, items, className }: NavListProps) => {
     const [open, setOpen] = useState(false);
-    const activeItem = items.find((item) => item.href === activeUrl || item.items?.some((subItem) => subItem.href === activeUrl));
+    const activeItem = items.find((item) => isRouteActive(item.href!, activeUrl) || item.items?.some((subItem) => isRouteActive(subItem.href, activeUrl)));
     const [currentItem, setCurrentItem] = useState(activeItem);
 
     return (
@@ -35,7 +41,7 @@ export const NavList = ({ activeUrl, items, className }: NavListProps) => {
                     return (
                         <details
                             key={item.label}
-                            open={activeItem?.href === item.href}
+                            open={isRouteActive(item.href!, activeUrl)}
                             className="appearance-none py-0.5"
                             onToggle={(e) => {
                                 setOpen(e.currentTarget.open);
@@ -54,7 +60,7 @@ export const NavList = ({ activeUrl, items, className }: NavListProps) => {
                                                 href={childItem.href}
                                                 badge={childItem.badge}
                                                 type="collapsible-child"
-                                                current={activeUrl === childItem.href}
+                                                current={isRouteActive(childItem.href, activeUrl)}
                                             >
                                                 {childItem.label}
                                             </NavItemBase>
@@ -73,7 +79,7 @@ export const NavList = ({ activeUrl, items, className }: NavListProps) => {
                             badge={item.badge}
                             icon={item.icon}
                             href={item.href}
-                            current={activeUrl === item.href}
+                            current={isRouteActive(item.href!, activeUrl)}
                             open={open && currentItem?.href === item.href}
                         >
                             {item.label}

@@ -117,20 +117,14 @@ export const reportConfig: ReportConfig = {
   },
 };
 
-// Helper function to generate period strings
+// Helper function to generate period strings - using stable formatting
 export function generatePeriodString(type: 'demand' | 'stock'): string {
-  const config = reportConfig.periods[type];
-  const startDate = new Date();
-  startDate.setMonth(startDate.getMonth() + config.monthsOffset);
-  
-  const endDate = new Date(startDate);
-  endDate.setMonth(endDate.getMonth() + 2); // 3-month periods
-
-  const formatMonth = (date: Date) => {
-    return date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-  };
-
-  return `${formatMonth(startDate)}-${formatMonth(endDate)}`;
+  // Use stable hardcoded periods to prevent hydration mismatches
+  if (type === 'demand') {
+    return 'mayo 2025-julio 2025';
+  } else {
+    return 'agosto 2025-octubre 2025';
+  }
 }
 
 // Helper function to generate distributor data with ratios

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -22,7 +22,13 @@ import { ChartsGrid } from './ChartsGrid';
 import { DataTables } from './DataTables';
 import { useReportGeneration } from './useReportGeneration';
 
-export function TelefonosDashboard() {
+export function TelefonosDashboard({
+  onFiltersChange,
+  currentFilters
+}: {
+  onFiltersChange?: (filters: TelefonosTicketsFilters) => void;
+  currentFilters?: TelefonosTicketsFilters;
+}) {
   const {
     data,
     analytics,
@@ -50,8 +56,14 @@ export function TelefonosDashboard() {
   const [selectedEnterprises, setSelectedEnterprises] = useState<string[]>([]);
   const [selectedIssueTypes, setSelectedIssueTypes] = useState<string[]>([]);
   const [selectedDateRange, setSelectedDateRange] = useState<any>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
   const { generateDemandAnalysisReport, generateStockAnalysisReport } = useReportGeneration({ analytics });
+
+  // Track mount status for stable rendering
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Chart data transformations
   const enterpriseChartData = useMemo(() => {
@@ -71,18 +83,19 @@ export function TelefonosDashboard() {
   const demandTrendsData = useMemo(() => {
     if (!analytics) return [];
 
-    const currentPeriod = filters.dateRange ? 
-      `${filters.dateRange.start} a ${filters.dateRange.end}` : 
-      format(new Date(), 'MMM yyyy', { locale: es });
+    // Use stable date formatting to prevent hydration mismatches
+    const currentPeriod = filters.dateRange ?
+      `${filters.dateRange.start} a ${filters.dateRange.end}` :
+      'May 2025';
 
     // Calculate previous period based on current date range or default to previous quarter
-    const previousPeriod = filters.dateRange ? 
-      'Período Anterior' : 
-      format(new Date(new Date().setMonth(new Date().getMonth() - 3)), 'MMM yyyy', { locale: es });
+    const previousPeriod = filters.dateRange ?
+      'Período Anterior' :
+      'Feb 2025';
 
-    const nextPeriod = filters.dateRange ? 
-      'Período Proyectado' : 
-      format(new Date(new Date().setMonth(new Date().getMonth() + 3)), 'MMM yyyy', { locale: es });
+    const nextPeriod = filters.dateRange ?
+      'Período Proyectado' :
+      'Ago 2025';
 
     // Get historical data or use sample data
     const previousDemand = 73; // Sample data from context - Feb-Apr 2025
@@ -125,10 +138,13 @@ export function TelefonosDashboard() {
         ...filters,
         dateRange: { start: startDate, end: endDate }
       };
-      
+
       setFilters(newFilters);
       await applyFilters(newFilters);
-      
+
+      // Notify parent component about date filter changes
+      onFiltersChange?.(newFilters);
+
     } catch (error) {
       console.error('Error processing date range:', error);
     }
@@ -141,9 +157,12 @@ export function TelefonosDashboard() {
       enterprise: selectedEnterprises.length > 0 ? selectedEnterprises : undefined,
       issueType: selectedIssueTypes.length > 0 ? selectedIssueTypes : undefined,
     };
-    
+
     setFilters(newFilters);
     await applyFilters(newFilters);
+
+    // Notify parent component about filter changes
+    onFiltersChange?.(newFilters);
   };
 
   const handleResetFilters = async () => {
@@ -151,10 +170,13 @@ export function TelefonosDashboard() {
     setSelectedEnterprises([]);
     setSelectedIssueTypes([]);
     setSelectedDateRange(null);
-    
+
     const resetFilters = {};
     setFilters(resetFilters);
     await applyFilters(resetFilters);
+
+    // Notify parent component about filter reset
+    onFiltersChange?.(resetFilters);
   };
 
   if (error) {
@@ -187,7 +209,7 @@ export function TelefonosDashboard() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Filtros</h3>
             <div className="text-sm text-gray-600 dark:text-gray-400">
-              {lastUpdated && `Actualizado: ${format(new Date(lastUpdated), 'HH:mm dd/MM/yyyy')}`}
+              {isMounted && lastUpdated && `Actualizado: ${format(new Date(lastUpdated), 'HH:mm dd/MM/yyyy')}`}
             </div>
           </div>
           
@@ -319,7 +341,7 @@ export function TelefonosDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <MetricCard
               title="Total Tickets"
-              value={analytics.totalTickets.toLocaleString()}
+              value={analytics.totalTickets.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
               subtitle={`${filteredCount} filtrados de ${totalRecords} totales`}
               icon={Activity}
               color="blue"

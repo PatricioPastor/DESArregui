@@ -19,6 +19,12 @@ import { NavItemButton } from "../base-components/nav-item-button";
 import { NavList } from "../base-components/nav-list";
 import type { NavItemType } from "../config";
 
+const isRouteActive = (itemHref: string, activeUrl?: string): boolean => {
+    if (!activeUrl || !itemHref) return false;
+    if (itemHref === activeUrl) return true;
+    return activeUrl.startsWith(itemHref + '/');
+};
+
 interface SidebarNavigationSlimProps {
     /** URL of the currently active item. */
     activeUrl?: string;
@@ -33,7 +39,7 @@ interface SidebarNavigationSlimProps {
 }
 
 export const SidebarNavigationSlim = ({ activeUrl, items, footerItems = [], hideBorder, hideRightBorder }: SidebarNavigationSlimProps) => {
-    const activeItem = [...items, ...footerItems].find((item) => item.href === activeUrl || item.items?.some((subItem) => subItem.href === activeUrl));
+    const activeItem = [...items, ...footerItems].find((item) => isRouteActive(item.href!, activeUrl) || item.items?.some((subItem) => isRouteActive(subItem.href, activeUrl)));
     const [currentItem, setCurrentItem] = useState(activeItem || items[1]);
     const [isHovering, setIsHovering] = useState(false);
 
@@ -139,7 +145,7 @@ export const SidebarNavigationSlim = ({ activeUrl, items, footerItems = [], hide
                         <ul className="py-2">
                             {currentItem.items?.map((item) => (
                                 <li key={item.label} className="py-0.5">
-                                    <NavItemBase current={activeUrl === item.href} href={item.href} icon={item.icon} badge={item.badge} type="link">
+                                    <NavItemBase current={isRouteActive(item.href, activeUrl)} href={item.href} icon={item.icon} badge={item.badge} type="link">
                                         {item.label}
                                     </NavItemBase>
                                 </li>
@@ -191,10 +197,10 @@ export const SidebarNavigationSlim = ({ activeUrl, items, footerItems = [], hide
 
                     <div className="mt-auto flex flex-col gap-5 px-2 py-4">
                         <div className="flex flex-col gap-2">
-                            <NavItemBase current={activeUrl === "/support"} type="link" href="/support" icon={LifeBuoy01}>
+                            <NavItemBase current={isRouteActive("/support", activeUrl)} type="link" href="/support" icon={LifeBuoy01}>
                                 Support
                             </NavItemBase>
-                            <NavItemBase current={activeUrl === "/settings"} type="link" href="/settings" icon={Settings01}>
+                            <NavItemBase current={isRouteActive("/settings", activeUrl)} type="link" href="/settings" icon={Settings01}>
                                 Settings
                             </NavItemBase>
                         </div>

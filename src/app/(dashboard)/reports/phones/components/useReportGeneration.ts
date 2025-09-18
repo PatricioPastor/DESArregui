@@ -31,7 +31,7 @@ export function useReportGeneration({ analytics }: UseReportGenerationProps) {
       const pendingByDistributor = calculatePendingByDistributor(validatedAnalytics);
       
       const reportData = {
-        reportDate: format(new Date(), 'dd \'de\' MMMM \'de\' yyyy, HH:mm \'PM\' xxx', { locale: es }),
+        reportDate: new Date().toISOString().slice(0, 19).replace('T', ' '),
         period: generatePeriodString('demand'),
         distributorsData: generateDistributorData(validatedAnalytics, 'demand'),
         obsoleteDevices,
@@ -63,7 +63,7 @@ export function useReportGeneration({ analytics }: UseReportGenerationProps) {
       const pendingByDistributor = calculatePendingByDistributor(validatedAnalytics);
       
       const reportData = {
-        reportDate: format(new Date(), 'dd \'de\' MMMM \'de\' yyyy, HH:mm \'PM\' xxx', { locale: es }),
+        reportDate: new Date().toISOString().slice(0, 19).replace('T', ' '),
         period: generatePeriodString('stock'),
         distributorsData: generateDistributorData(validatedAnalytics, 'stock'),
         obsoleteDevices: reportConfig.defaults.obsoleteDevices,

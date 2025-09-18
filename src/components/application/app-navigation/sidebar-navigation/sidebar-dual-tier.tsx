@@ -13,6 +13,12 @@ import { NavItemBase } from "../base-components/nav-item";
 import { NavList } from "../base-components/nav-list";
 import type { NavItemType } from "../config";
 
+const isRouteActive = (itemHref: string, activeUrl?: string): boolean => {
+    if (!activeUrl || !itemHref) return false;
+    if (itemHref === activeUrl) return true;
+    return activeUrl.startsWith(itemHref + '/');
+};
+
 interface SidebarNavigationDualTierProps {
     /** URL of the currently active item. */
     activeUrl?: string;
@@ -27,7 +33,7 @@ interface SidebarNavigationDualTierProps {
 }
 
 export const SidebarNavigationDualTier = ({ activeUrl, hideBorder, items, footerItems = [], featureCard }: SidebarNavigationDualTierProps) => {
-    const activeItem = [...items, ...footerItems].find((item) => item.href === activeUrl || item.items?.some((subItem) => subItem.href === activeUrl));
+    const activeItem = [...items, ...footerItems].find((item) => isRouteActive(item.href as string, activeUrl) || item.items?.some((subItem) => isRouteActive(subItem.href, activeUrl)));
     const [currentItem, setCurrentItem] = useState(activeItem || items[1]);
     const [isHovering, setIsHovering] = useState(false);
 
@@ -113,7 +119,7 @@ export const SidebarNavigationDualTier = ({ activeUrl, hideBorder, items, footer
                     <ul style={{ width: SECONDARY_SIDEBAR_WIDTH }} className="flex h-full flex-col p-4 py-6">
                         {currentItem.items?.map((item) => (
                             <li key={item.label + item.href} className="py-0.5">
-                                <NavItemBase current={activeUrl === item.href} href={item.href} icon={item.icon} badge={item.badge} type="link">
+                                <NavItemBase current={isRouteActive(item.href, activeUrl)} href={item.href} icon={item.icon} badge={item.badge} type="link">
                                     {item.label}
                                 </NavItemBase>
                             </li>

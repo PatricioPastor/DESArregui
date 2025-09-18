@@ -6,6 +6,12 @@ import { NavAccountCard } from "../base-components/nav-account-card";
 import { NavItemBase } from "../base-components/nav-item";
 import type { NavItemType } from "../config";
 
+const isRouteActive = (itemHref: string, activeUrl?: string): boolean => {
+    if (!activeUrl || !itemHref) return false;
+    if (itemHref === activeUrl) return true;
+    return activeUrl.startsWith(itemHref + '/');
+};
+
 interface SidebarNavigationSectionsSubheadingsProps {
     /** URL of the currently active item. */
     activeUrl?: string;
@@ -38,7 +44,7 @@ export const SidebarNavigationSectionsSubheadings = ({ activeUrl = "/", items }:
                         <ul className="px-4 pb-5">
                             {group.items.map((item) => (
                                 <li key={item.label} className="py-0.5">
-                                    <NavItemBase icon={item.icon} href={item.href} badge={item.badge} type="link" current={item.href === activeUrl}>
+                                    <NavItemBase icon={item.icon} href={item.href as string} badge={item.badge} type="link" current={isRouteActive(item.href!, activeUrl)}>
                                         {item.label}
                                     </NavItemBase>
                                 </li>

@@ -12,7 +12,8 @@
       "Read(/C:\\Users\\patri\\Dev\\main\\DESA\\DESArregui\\src\\lib/**)",
       "Read(/C:\\Users\\patri\\Dev\\main\\DESA\\DESArregui\\src\\app\\api\\soti/**)",
       "Read(/C:\\Users\\patri\\Dev\\main\\DESA\\DESArregui\\src\\app\\(dashboard)\\soti/**)",
-      "Read(/C:\\Users\\patri\\Dev\\main\\DESA\\DESArregui\\src\\components\\dashboard/**)"
+      "Read(/C:\\Users\\patri\\Dev\\main\\DESA\\DESArregui\\src\\components\\dashboard/**)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }
