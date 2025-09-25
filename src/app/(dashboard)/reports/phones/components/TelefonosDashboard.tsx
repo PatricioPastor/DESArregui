@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 // Components
 import { Button } from '@/components/base/buttons/button';
@@ -57,6 +58,7 @@ export function TelefonosDashboard({
   const [selectedIssueTypes, setSelectedIssueTypes] = useState<string[]>([]);
   const [selectedDateRange, setSelectedDateRange] = useState<any>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const { generateDemandAnalysisReport, generateStockAnalysisReport } = useReportGeneration({ analytics });
 
@@ -177,6 +179,55 @@ export function TelefonosDashboard({
 
     // Notify parent component about filter reset
     onFiltersChange?.(resetFilters);
+  };
+
+  const handleSyncTickets = async () => {
+    setIsSyncing(true);
+
+    const loadingToastId = toast.loading('Sincronizando tickets...', {
+      description: 'Procesando datos de tickets',
+    });
+
+    try {
+      const response = await fetch('/api/sync/tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tickets: data }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        const parts = [];
+        if (result.created > 0) parts.push(`${result.created} nuevos`);
+        if (result.updated > 0) parts.push(`${result.updated} actualizados`);
+        if (result.deactivated > 0) parts.push(`${result.deactivated} desactivados`);
+
+        const message = parts.length > 0
+          ? `Sincronización completada: ${parts.join(', ')}`
+          : 'Sincronización completada: sin cambios';
+
+        toast.success(message, {
+          id: loadingToastId,
+          description: 'Base de datos actualizada correctamente',
+        });
+
+        // Refresh data after sync
+        await refresh();
+      } else {
+        throw new Error(result.error || 'Error en la sincronización');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error desconocido';
+      toast.error('Error en la sincronización', {
+        id: loadingToastId,
+        description: message,
+      });
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   if (error) {
@@ -311,12 +362,20 @@ export function TelefonosDashboard({
             
             <div className="flex items-center space-x-3">
               <Button
+                color="primary"
+                onClick={handleSyncTickets}
+                disabled={isLoading || isSyncing}
+                className="inline-flex items-center"
+              >
+                {isSyncing ? "Sincronizando..." : "Sincronizar tickets"}
+              </Button>
+              <Button
                 color="secondary"
                 onClick={refresh}
                 disabled={isLoading}
                 className="inline-flex items-center"
               >
-                Sincronizar
+                Actualizar datos
               </Button>
               <Button iconLeading={Download01} onClick={generateDemandAnalysisReport} className="inline-flex items-center">
                 Reporte Demanda

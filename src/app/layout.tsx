@@ -31,8 +31,11 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="es" suppressHydrationWarning>
-            <body className={cx(inter.variable, "bg-app antialiased min-h-screen")}>
-                <Toaster richColors theme="dark"/>
+            <body className={cx(inter.variable, "bg-[#0a0a0a] antialiased min-h-screen")}>
+                <Toaster richColors theme="dark" position="top-right"
+                
+                expand={true}
+                closeButton/>
                 <RouteProvider>
                     <Theme>
                         

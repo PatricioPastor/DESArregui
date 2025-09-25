@@ -7,7 +7,7 @@ import { Tabs } from "@/components/application/tabs/tabs";
 import { useCreateStockStore } from "@/store/create-stock.store";
 import { useShallow } from "zustand/react/shallow";
 import { IndividualTab } from "./individual-tab";
-import { BulkTab } from "./bulk-tab";
+
 import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { X } from "@untitledui/icons";
 import { toast } from "sonner";

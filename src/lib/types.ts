@@ -46,34 +46,79 @@ export interface BaseSheetResponse {
   error?: string;
 }
 
-export interface SheetDataRaw {
-  headers: string[];
-  rows: string[][];
-  totalRecords: number;
-  lastUpdated: string;
-}
-
-// Stock Device Record (columns A-E)
+// Stock Device Record from Google Sheets (columns A-E)
 export interface StockRecord {
   modelo: string;
   imei: string;
   distribuidora: string;
   asignado_a: string;
   ticket: string;
+}
+// Inventory Device Record (database-backed)
+// Maps to Prisma's device_status enum: NEW, ASSIGNED, USED, REPAIRED, NOT_REPAIRED, LOST
+export type InventoryStatus =
+  | 'NEW'
+  | 'ASSIGNED'
+  | 'USED'
+  | 'REPAIRED'
+  | 'NOT_REPAIRED'
+  | 'LOST';
+
+export interface InventoryStatusSummary {
+  status: InventoryStatus;
+  label: string;
+  count: number;
+}
+
+export interface SOTIDeviceInfo {
+  device_name?: string;
+  assigned_user?: string;
+  connection_date?: string;
+  disconnection_date?: string;
+  is_in_soti: boolean;
+  last_sync?: string;
+}
+
+export interface InventoryRecord {
+  id: string;
+  imei: string;
+  status: InventoryStatus;
+  status_label: string;
+  estado: string;
+    modelo: string;
+  model_id: string;
+  model_details: {
+    id: string;
+    brand: string;
+    model: string;
+    storage_gb: number | null;
+    color: string | null;
+    display_name: string;
+  };
+  distribuidora: string;
+  distribuidora_id?: string | null;
+  asignado_a: string;
+  ticket: string;
+  is_assigned: boolean;
+  created_at: string;
+  updated_at: string;
+  last_assignment_at?: string | null;
+  assignments_count: number;
+  soti_info: SOTIDeviceInfo;
   raw?: any; // Raw database record for additional data
 }
 
-// Stock API Response types
-export interface StockSheetResponse {
+// Inventory API Response types
+export interface InventoryResponse {
   success: boolean;
-  data?: StockRecord[];
+  data?: InventoryRecord[];
   headers?: string[];
   totalRecords?: number;
   lastUpdated?: string;
+  statusSummary?: InventoryStatusSummary[];
   error?: string;
 }
 
-// TELEFONOS_TICKETS Record based on columns A-G
 export interface TelefonosTicketRecord {
   issue_type: string;
   key: string;
@@ -82,6 +127,11 @@ export interface TelefonosTicketRecord {
   enterprise: string;
   created: string;
   updated: string;
+  creator: string;
+  status: string;
+  category_status: string;
+  is_assignment?: boolean;
+  is_replacement?: boolean;
 }
 
 // TELEFONOS_TICKETS API Response types
@@ -237,3 +287,7 @@ export interface CallReportsFilters {
   duracion_max?: number;
   searchKeyword?: string;
 }
+
+
+
+

@@ -1,33 +1,70 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@/generated/prisma";
-import { getStockRecords } from "@/lib/sheets";
-import type { StockRecord } from "@/lib/types";
+import prisma from '@/lib/prisma';
+import type { StockRecord, InventoryStatus } from "@/lib/types";
 
-const prisma = new PrismaClient();
+interface SyncRequest {
+  devices: StockRecord[];
+}
+
+interface SyncResponse {
+  success: boolean;
+  processed: number;
+  created: number;
+  updated: number;
+  createdModels: number;
+  createdDistributors: number;
+  errors: number;
+  error?: string;
+  details?: {
+    errors: Array<{
+      device: Partial<StockRecord>;
+      error: string;
+    }>;
+  };
+}
+
+const resolveInventoryStatus = (record: StockRecord): InventoryStatus => {
+  const assigned = record.asignado_a && record.asignado_a.trim() !== '';
+  const hasTicket = record.ticket && record.ticket.trim() !== '';
+
+  if (assigned && hasTicket) return 'USED';
+  if (assigned) return 'ASSIGNED';
+  if (hasTicket) return 'NOT_REPAIRED';
+  return 'NEW';
+};
 
 export async function POST(request: NextRequest) {
   try {
-    // Get stock data from Google Sheets
-    const stockRecords = await getStockRecords();
+    const body: SyncRequest = await request.json();
 
-    if (!stockRecords || stockRecords.length === 0) {
-      return NextResponse.json(
-        { success: false, error: "No stock data found in Google Sheets" },
+    if (!body.devices || !Array.isArray(body.devices)) {
+      return NextResponse.json<SyncResponse>(
+        {
+          success: false,
+          processed: 0,
+          created: 0,
+          updated: 0,
+          createdModels: 0,
+          createdDistributors: 0,
+          errors: 1,
+          error: 'Invalid request: devices array is required',
+        },
         { status: 400 }
       );
     }
 
-    let syncStats = {
+    const results = {
+      processed: 0,
       created: 0,
       updated: 0,
       createdModels: 0,
       createdDistributors: 0,
       errors: 0,
-      errorDetails: [] as string[]
+      errorDetails: [] as Array<{ device: Partial<StockRecord>; error: string }>,
     };
 
     // Process each record
-    for (const stockRecord of stockRecords) {
+    for (const stockRecord of body.devices) {
       try {
         // Skip records without IMEI
         if (!stockRecord.imei || stockRecord.imei.trim() === "") {
@@ -56,7 +93,7 @@ export async function POST(request: NextRequest) {
               color: ""
             }
           });
-          syncStats.createdModels++;
+          results.createdModels++;
         }
 
         // Create or find distributor
@@ -77,7 +114,7 @@ export async function POST(request: NextRequest) {
             distributor = await prisma.distributor.create({
               data: { name: distributorName }
             });
-            syncStats.createdDistributors++;
+            results.createdDistributors++;
           }
         }
 
@@ -86,9 +123,7 @@ export async function POST(request: NextRequest) {
           where: { imei: stockRecord.imei }
         });
 
-        // Determine status based on assignment
-        const isAssigned = stockRecord.asignado_a && stockRecord.asignado_a.trim() !== "";
-        const status = isAssigned ? "ASSIGNED" : "IN_STOCK";
+        const status: InventoryStatus = resolveInventoryStatus(stockRecord);
 
         if (existingDevice) {
           // Update existing device
@@ -99,10 +134,11 @@ export async function POST(request: NextRequest) {
               distributor_id: distributor?.id,
               status: status,
               assigned_to: stockRecord.asignado_a || null,
-              ticket_id: stockRecord.ticket || null
+              ticket_id: stockRecord.ticket || null,
+              updated_at: new Date(),
             }
           });
-          syncStats.updated++;
+          results.updated++;
         } else {
           // Create new device
           await prisma.device.create({
@@ -115,33 +151,59 @@ export async function POST(request: NextRequest) {
               ticket_id: stockRecord.ticket || null
             }
           });
-          syncStats.created++;
+          results.created++;
         }
 
+        results.processed++;
+
       } catch (error) {
-        syncStats.errors++;
-        syncStats.errorDetails.push(`Error processing IMEI ${stockRecord.imei}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        console.error(`Error processing stock record ${stockRecord.imei}:`, error);
+        results.errors++;
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        results.errorDetails.push({
+          device: {
+            imei: stockRecord.imei,
+            modelo: stockRecord.modelo,
+          },
+          error: errorMessage,
+        });
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Stock synchronization completed",
-      stats: syncStats,
-      totalProcessed: stockRecords.length
-    });
+    const response: SyncResponse = {
+      success: results.errors === 0,
+      processed: results.processed,
+      created: results.created,
+      updated: results.updated,
+      createdModels: results.createdModels,
+      createdDistributors: results.createdDistributors,
+      errors: results.errors,
+    };
+
+    // Include error details if there were errors
+    if (results.errors > 0) {
+      response.details = {
+        errors: results.errorDetails,
+      };
+    }
+
+    const statusCode = results.errors === 0 ? 200 : 207; // 207 = Multi-Status
+
+    return NextResponse.json<SyncResponse>(response, { status: statusCode });
 
   } catch (error) {
     console.error("Stock sync error:", error);
-    return NextResponse.json(
+    return NextResponse.json<SyncResponse>(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Internal server error"
+        processed: 0,
+        created: 0,
+        updated: 0,
+        createdModels: 0,
+        createdDistributors: 0,
+        errors: 1,
+        error: `Failed to sync stock: ${error instanceof Error ? error.message : 'Internal server error'}`,
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }

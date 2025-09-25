@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Edit01, FilterLines, RefreshCw01, SearchLg, Trash01 } from "@untitledui/icons";
+import { Edit01, FilterLines, RefreshCw01, SearchLg, Download01 } from "@untitledui/icons";
 import type { Key, SortDescriptor } from "react-aria-components";
 import { PaginationCardMinimal } from "@/components/application/pagination/pagination";
 import { Table, TableCard, TableRowActionsDropdown } from "@/components/application/table/table";
@@ -11,6 +11,7 @@ import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { Input } from "@/components/base/input/input";
 import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
 import { useFilteredSOTIData } from "@/hooks/use-soti-data";
+import { toast } from "sonner";
 
 import type { SOTIRecord } from "@/lib/types";
 
@@ -52,6 +53,7 @@ export default function SOTI() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
   const [editingRecord, setEditingRecord] = useState<SOTIRecord | null>(null);
+  const [issyncing, setIssyncing] = useState(false);
 
   const { filteredData: data, loading: isLoading, error, lastUpdated, refetch } = useFilteredSOTIData(searchQuery);
 
@@ -155,6 +157,52 @@ export default function SOTI() {
     await refetch();
   };
 
+  const handleSyncDatabase = async () => {
+    setIssyncing(true);
+
+    const loadingToastId = toast.loading('Sincronizando base...', {
+      description: 'Procesando dispositivos SOTI',
+    });
+
+    try {
+      const response = await fetch('/api/sync/soti', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ devices: data }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        const parts = [];
+        if (result.created > 0) parts.push(`${result.created} nuevos`);
+        if (result.updated > 0) parts.push(`${result.updated} actualizados`);
+        if (result.deactivated > 0) parts.push(`${result.deactivated} desactivados`);
+
+        const message = parts.length > 0
+          ? `Sincronización completada: ${parts.join(', ')}`
+          : 'Sincronización completada: sin cambios';
+
+        toast.success(message, {
+          id: loadingToastId,
+          description: 'Base de datos actualizada correctamente',
+        });
+      } else {
+        throw new Error(result.error || 'Error en la sincronización');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error desconocido';
+      toast.error('Error en la sincronización', {
+        id: loadingToastId,
+        description: message,
+      });
+    } finally {
+      setIssyncing(false);
+    }
+  };
+
   if (error) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -169,23 +217,32 @@ export default function SOTI() {
   }
 
   return (
-    <div className="space-y-6 w-full -mt-6">
+    <div className="space-y-6 w-full ">
       <TableCard.Root>
         <TableCard.Header
           title="Dispositivos SOTI"
           badge={`${sortedItems.length} ${sortedItems.length === 1 ? 'dispositivo' : 'dispositivos'}`}
           description={lastUpdated ? `Última actualización: ${formatDate(lastUpdated)}` : undefined}
           contentTrailing={
-            <div className="absolute top-5 flex items-center gap-4 right-4 md:right-6">
-              <Button 
-            color="secondary" 
-            size="md" 
-            iconLeading={RefreshCw01} 
-            onClick={handleRefresh}
-            disabled={isLoading}
-          >
-            {isLoading ? "Actualizando..." : "Actualizar"}
-          </Button> 
+            <div className="absolute top-5 flex items-center gap-3 right-4 md:right-6">
+              <Button
+                color="primary"
+                size="md"
+                iconLeading={Download01}
+                onClick={handleSyncDatabase}
+                disabled={issyncing || isLoading}
+              >
+                {issyncing ? "Sincronizando..." : "Sinc. Base"}
+              </Button>
+              <Button
+                color="secondary"
+                size="md"
+                iconLeading={RefreshCw01}
+                onClick={handleRefresh}
+                disabled={isLoading || issyncing}
+              >
+                {isLoading ? "Actualizando..." : "Actualizar"}
+              </Button>
               <TableRowActionsDropdown />
             </div>
           }
@@ -224,22 +281,20 @@ export default function SOTI() {
           </div>
         ) : (
           <>
-            <Table 
-              aria-label="Dispositivos SOTI" 
-              selectionMode="multiple" 
-              sortDescriptor={sortDescriptor} 
+            <Table
+              aria-label="Dispositivos SOTI"
+              selectionMode="multiple"
+              sortDescriptor={sortDescriptor}
               onSortChange={setSortDescriptor}
             >
               <Table.Header>
                 <Table.Head id="nombre_dispositivo" label="Dispositivo" isRowHeader allowsSorting />
                 <Table.Head id="usuario_asignado" label="Usuario" allowsSorting />
-                <Table.Head id="modelo" label="Modelo" allowsSorting />
-                <Table.Head id="id_ticket_jira" label="Ticket" allowsSorting className="hidden lg:table-cell" />
-                <Table.Head id="imei" label="IMEI" allowsSorting className="w-40" />
-                <Table.Head id="telefono" label="Teléfono" allowsSorting />
-                <Table.Head id="fecha_conexion" label="Estado" allowsSorting className="w-32" />
-                <Table.Head id="ubicacion" label="Ubicación" allowsSorting className="hidden xl:table-cell" />
-                <Table.Head id="actions" className="w-20" />
+                <Table.Head id="imei" label="IMEI" allowsSorting className="w-36" />
+                <Table.Head id="id_ticket_jira" label="Ticket" allowsSorting className="w-24" />
+                <Table.Head id="fecha_conexion" label="Estado" allowsSorting className="w-28" />
+                <Table.Head id="telefono" label="Teléfono" allowsSorting className="hidden md:table-cell" />
+                <Table.Head id="actions" className="w-16" />
               </Table.Header>
 
               <Table.Body items={paginatedData}>
@@ -247,46 +302,43 @@ export default function SOTI() {
                   <Table.Row id={`soti-${item.imei}`}>
                     <Table.Cell>
                       <div className="flex flex-col">
-                        <span className="font-medium text-primary">{item.nombre_dispositivo || "-"}</span>
-                        <span className="text-xs text-secondary">{getRutaName(item.ruta).replace('\\','/') }</span>
+                        <span className="font-medium text-primary text-sm">{item.nombre_dispositivo || "-"}</span>
+                        <span className="text-xs text-tertiary">{item.modelo || "-"}</span>
                       </div>
                     </Table.Cell>
                     <Table.Cell>
-                      <span className="font-medium text-gray-200">{item.usuario_asignado || "-"}</span>
-                    </Table.Cell>
-                    <Table.Cell className="whitespace-nowrap">{item.modelo || "-"}</Table.Cell>
-                    <Table.Cell className="whitespace-nowrap hidden lg:table-cell">
-                      <BadgeWithDot type="modern" color={
-                        item.id_ticket_jira ? "success" : 
-                        isAfterLastEnrollemnt(item) ? "error" : 
-                        isAfter2024(item) ? "warning" : 
-                        "gray"
-                      } >
-                        {item.id_ticket_jira || "Sin ticket" }
-                      </BadgeWithDot>
+                      <span className="text-sm font-medium">{item.usuario_asignado || "-"}</span>
                     </Table.Cell>
                     <Table.Cell>
                       <span className="font-mono text-xs">{item.imei || "-"}</span>
                     </Table.Cell>
-                    <Table.Cell>{item.telefono || "-"}</Table.Cell>
-                    <Table.Cell className="whitespace-nowrap text-sm">
+                    <Table.Cell>
+                      <Badge
+                        size="sm"
+                        color={
+                          item.id_ticket_jira ? "success" :
+                          isAfterLastEnrollemnt(item) ? "error" :
+                          isAfter2024(item) ? "warning" :
+                          "gray"
+                        }
+                      >
+                        {item.id_ticket_jira || "Sin ticket"}
+                      </Badge>
+                    </Table.Cell>
+                    <Table.Cell>
                       {getConnectionStatus(item.fecha_conexion, item.fecha_desconexion)}
                     </Table.Cell>
-                    <Table.Cell className="whitespace-nowrap hidden xl:table-cell">
-                      {item.ubicacion || "-"}
+                    <Table.Cell className="hidden md:table-cell text-sm">
+                      {item.telefono || "-"}
                     </Table.Cell>
-                    
-                    <Table.Cell className="px-3">
-                      <div className="flex justify-end gap-0.5">
-                        <ButtonUtility 
-                          size="xs" 
-                          color="tertiary" 
-                          tooltip="Editar" 
-                          icon={Edit01}
-                          onClick={() => handleEditRecord(item)}
-                        />
-                        <ButtonUtility size="xs" color="tertiary" tooltip="Eliminar" icon={Trash01} />
-                      </div>
+                    <Table.Cell>
+                      <ButtonUtility
+                        size="xs"
+                        color="tertiary"
+                        tooltip="Editar"
+                        icon={Edit01}
+                        onClick={() => handleEditRecord(item)}
+                      />
                     </Table.Cell>
                   </Table.Row>
                 )}

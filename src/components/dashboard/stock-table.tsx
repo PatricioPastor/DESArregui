@@ -12,7 +12,7 @@ import { Input } from "@/components/base/input/input";
 import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
 import { useFilteredStockData } from "@/hooks/use-stock-data";
 import { CreateStockModal } from "@/features/stock/components/create/create-stock-modal";
-import type { StockRecord } from "@/lib/types";
+import type { InventoryRecord } from "@/lib/types";
 import { cx } from "@/utils/cx";
 import { toast } from "sonner";
 
@@ -57,8 +57,8 @@ export function StockTable() {
   // Sort data
   const sortedItems = useMemo(() => {
     return filteredData.sort((a, b) => {
-      const first = a[sortDescriptor.column as keyof StockRecord] as string;
-      const second = b[sortDescriptor.column as keyof StockRecord] as string;
+      const first = a[sortDescriptor.column as keyof InventoryRecord] as string;
+      const second = b[sortDescriptor.column as keyof InventoryRecord] as string;
 
       if (!first && !second) return 0;
       if (!first) return 1;
@@ -191,7 +191,7 @@ export function StockTable() {
   }
 
   return (
-    <div className="space-y-6 -mt-6">
+    <div className="space-y-6 max-h-screen -mt-6">
       
 
       <TableCard.Root>
@@ -201,16 +201,16 @@ export function StockTable() {
           description={lastUpdated ? `Última actualización: ${formatDate(lastUpdated)}` : undefined}
           contentTrailing={
             <div className="absolute top-5 right-4 md:right-6 flex items-center justify-end gap-3">
-              <Button
-                color="primary"
-                size="md"
-                iconLeading={Plus}
+              <ButtonUtility
+                tooltip="Agregar Dispositivo" 
+                size="sm"
+                icon={Plus}
                 onClick={() => setIsAddModalOpen(true)}
                 disabled={isLoading || isSyncing}
-              >
-                Agregar Stock
-              </Button>
-              <Button
+              />
+                
+              
+              {/* <Button
                 color="secondary"
                 size="md"
                 iconLeading={Database01}
@@ -227,7 +227,7 @@ export function StockTable() {
                 disabled={isLoading || isSyncing}
               >
                 {isLoading ? "Actualizando..." : "Actualizar"}
-              </Button>
+              </Button> */}
               <TableRowActionsDropdown />
             </div>
           }
@@ -239,9 +239,9 @@ export function StockTable() {
             selectedKeys={selectedFilter} 
             onSelectionChange={setSelectedFilter}
           >
-            <ButtonGroupItem id="all">Ver todos</ButtonGroupItem>
-            <ButtonGroupItem id="disponibles">Disponibles</ButtonGroupItem>
-            <ButtonGroupItem id="asignados">Asignados</ButtonGroupItem>
+            <ButtonGroupItem id="all">Nuevos</ButtonGroupItem>
+            <ButtonGroupItem id="disponibles">Usados</ButtonGroupItem>
+            <ButtonGroupItem id="asignados">Sin Reparación</ButtonGroupItem>
           </ButtonGroup>
 
           <div className="flex gap-3">
@@ -253,9 +253,10 @@ export function StockTable() {
               onChange={(val) => setSearchQuery(val)}
               className="w-full md:w-80"
             />
-            <Button size="md" color="secondary" iconLeading={FilterLines}>
+            
+            {/* <Button size="md" color="secondary" iconLeading={FilterLines}>
               Filtros
-            </Button>
+            </Button> */}
           </div>
         </div>
 
@@ -267,8 +268,9 @@ export function StockTable() {
         ) : (
           <>
             <Table 
-              aria-label="Stock de dispositivos" 
+              aria-label="Inventario de teléfonos" 
               selectionMode="multiple" 
+              
               sortDescriptor={sortDescriptor} 
               onSortChange={setSortDescriptor}
             >
@@ -278,7 +280,7 @@ export function StockTable() {
                 <Table.Head id="distribuidora" label="Distribuidora" allowsSorting />
                 <Table.Head id="asignado_a" label="Asignado A" allowsSorting />
                 <Table.Head id="ticket" label="Ticket" allowsSorting className="hidden lg:table-cell" />
-                <Table.Head id="actions" className="w-20" />
+                {/* <Table.Head id="actions" className="w-20" /> */}
               </Table.Header>
 
               <Table.Body items={paginatedData}>
@@ -310,7 +312,7 @@ export function StockTable() {
                         </BadgeWithDot>
                       </div>
                     </Table.Cell>
-                    <Table.Cell className="px-3">
+                    {/* <Table.Cell className="px-3">
                       <div className="flex justify-end gap-0.5">
                         <ButtonUtility 
                           size="xs" 
@@ -320,7 +322,7 @@ export function StockTable() {
                         />
                         <ButtonUtility size="xs" color="tertiary" tooltip="Eliminar" icon={Trash01} />
                       </div>
-                    </Table.Cell>
+                    </Table.Cell> */}
                   </Table.Row>
                 )}
               </Table.Body>
@@ -345,3 +347,4 @@ export function StockTable() {
     </div>
   );
 }
+

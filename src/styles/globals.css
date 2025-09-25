@@ -6,6 +6,8 @@
 @plugin "tailwindcss-react-aria-components";
 @plugin "tailwindcss-animate";
 
+@import '@carbon/charts/styles.css';
+
 @custom-variant dark (&:where(.dark-mode, .dark-mode *));
 @custom-variant label (& [data-label]);
 @custom-variant focus-input-within (&:has(input:focus));
@@ -85,3 +87,20 @@ input[type="number"] {
 input[type="search"]::-webkit-search-cancel-button {
     -webkit-appearance: none;
 }
+
+/* Carbon Charts Configuration */
+.cds--cc--chart-wrapper {
+    --cds-charts-font-family: var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --cds-charts-font-family-condensed: var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+}
+
+/* Dark mode adjustments for Carbon Charts */
+/* .dark-mode .cds--cc--chart-wrapper {
+    --cds-charts-background-color: var(--bg);
+    --cds-charts-grid-color: var(--border);
+    --cds-charts-text-color: var(--color-text-primary);
+    --cds-charts-text-secondary-color: var(--color-text-secondary);
+    --cds-charts-axis-color: var(--border);
+    --cds-charts-axis-text-color: var(--color-text-tertiary);
+} */

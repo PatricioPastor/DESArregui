@@ -9,22 +9,17 @@ datasource db {
   schemas  = ["main_auth", "phones", "support"]
 }
 
-// ========================
-// SCHEMA: main_auth (igual que antes, no lo toco)
-// ========================
-
 model User {
   id            String    @id
   name          String
-  email         String
+  email         String    @unique
   emailVerified Boolean
   image         String?
   createdAt     DateTime
   updatedAt     DateTime
-  sessions      Session[]
   accounts      Account[]
+  sessions      Session[]
 
-  @@unique([email])
   @@map("user")
   @@schema("main_auth")
 }
@@ -32,7 +27,7 @@ model User {
 model Session {
   id        String   @id
   expiresAt DateTime
-  token     String
+  token     String   @unique
   createdAt DateTime
   updatedAt DateTime
   ipAddress String?
@@ -40,7 +35,6 @@ model Session {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([token])
   @@map("session")
   @@schema("main_auth")
 }
@@ -50,7 +44,6 @@ model Account {
   accountId             String
   providerId            String
   userId                String
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   accessToken           String?
   refreshToken          String?
   idToken               String?
@@ -60,6 +53,7 @@ model Account {
   password              String?
   createdAt             DateTime
   updatedAt             DateTime
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("account")
   @@schema("main_auth")
@@ -77,29 +71,13 @@ model Verification {
   @@schema("main_auth")
 }
 
-// ========================
-// SCHEMA: phones
-// ========================
-
-enum device_status {
-  IN_STOCK
-  ASSIGNED
-  SOLD
-  RETURNED
-  DAMAGED
-  LOST
-
-  @@schema("phones")
-}
-
 model phone_model {
   id         String   @id @default(cuid())
   brand      String
   model      String
-  storage_gb Int?
   color      String?  @default("")
-
   sku        String?
+  storage_gb Int?
   devices    device[]
 
   @@unique([brand, model, storage_gb, color])
@@ -108,8 +86,8 @@ model phone_model {
 }
 
 model distributor {
-  id        String      @id @default(cuid())
-  name      String      @unique
+  id        String     @id @default(cuid())
+  name      String     @unique
   devices   device[]
   purchases purchase[]
 
@@ -119,13 +97,12 @@ model distributor {
 
 model purchase {
   id             String      @id @default(cuid())
-  distributor_id String
-  distributor    distributor @relation(fields: [distributor_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  purchased_at   DateTime    @default(now())
   currency       String      @default("ARS")
+  distributor_id String
   invoice_number String?
-
-  devices device[]
+  purchased_at   DateTime    @default(now())
+  devices        device[]
+  distributor    distributor @relation(fields: [distributor_id], references: [id], onDelete: Cascade)
 
   @@index([distributor_id])
   @@map("purchase")
@@ -133,25 +110,20 @@ model purchase {
 }
 
 model device {
-  id             String       @id @default(cuid())
-  imei           String       @unique
-  model_id       String
-  model          phone_model  @relation(fields: [model_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
-
+  id             String        @id @default(cuid())
+  imei           String        @unique
+  assigned_to    String?
+  created_at     DateTime      @default(now())
   distributor_id String?
-  distributor    distributor? @relation(fields: [distributor_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
-
-  purchase_id String?
-  purchase    purchase? @relation(fields: [purchase_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
-
-  status device_status @default(IN_STOCK)
-
-  assigned_to String?
-  ticket_id   String?
-
-  assignments assignment[]
-  created_at  DateTime     @default(now())
-  updated_at  DateTime     @updatedAt
+  model_id       String
+  purchase_id    String?
+  ticket_id      String?
+  updated_at     DateTime      @updatedAt
+  status         device_status @default(NEW)
+  assignments    assignment[]
+  distributor    distributor?  @relation(fields: [distributor_id], references: [id])
+  model          phone_model   @relation(fields: [model_id], references: [id], onDelete: SetDefault)
+  purchase       purchase?     @relation(fields: [purchase_id], references: [id])
 
   @@index([model_id])
   @@index([status])
@@ -162,17 +134,95 @@ model device {
 }
 
 model assignment {
-  id          String  @id @default(cuid())
-  device_id   String
-  device      device  @relation(fields: [device_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
-  type        assignment_type
+  id          String          @id @default(cuid())
+  at          DateTime        @default(now())
   assigned_to String?
+  device_id   String
   ticket_id   String?
-  at          DateTime @default(now())
+  type        assignment_type
+  device      device          @relation(fields: [device_id], references: [id], onDelete: Cascade)
 
   @@index([device_id, at])
   @@map("assignment")
+  @@schema("phones")
+}
+
+model soti_device {
+  id                    String    @id @default(cuid())
+  device_name           String    @unique
+  assigned_user         String?
+  model                 String?
+  imei                  String    @unique
+  route                 String?
+  registration_time     String?
+  enrollment_time       String?
+  connection_date       String?
+  disconnection_date    String?
+  phone                 String?
+  bssid_network         String?
+  ssid_network          String?
+  jira_ticket_id        String?
+  custom_phone          String?
+  custom_email          String?
+  android_enter_email   String?
+  location              String?
+  is_active             Boolean   @default(true)
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
+  last_sync             DateTime  @default(now())
+
+  @@index([imei])
+  @@index([device_name])
+  @@index([assigned_user])
+  @@index([is_active])
+  @@map("soti_device")
+  @@schema("phones")
+}
+
+model incident {
+  id          String               @id @default(cuid())
+  name        String
+  type        String
+  description String?
+  created_at  DateTime             @default(now())
+  updated_at  DateTime             @updatedAt
+  procedures  incident_procedure[]
+
+  @@map("incident")
+  @@schema("support")
+}
+
+model procedure {
+  id         String               @id @default(cuid())
+  title      String
+  content    String
+  created_at DateTime             @default(now())
+  updated_at DateTime             @updatedAt
+  incidents  incident_procedure[]
+
+  @@map("procedure")
+  @@schema("support")
+}
+
+model incident_procedure {
+  incident_id  String
+  procedure_id String
+  incident     incident  @relation(fields: [incident_id], references: [id], onDelete: Cascade)
+  procedure    procedure @relation(fields: [procedure_id], references: [id], onDelete: Cascade)
+
+  @@id([incident_id, procedure_id])
+  @@map("incident_procedure")
+  @@schema("support")
+}
+
+enum device_status {
+  NEW
+  ASSIGNED
+  USED
+  REPAIRED
+  NOT_REPAIRED
+  LOST
+
   @@schema("phones")
 }
 
@@ -183,46 +233,31 @@ enum assignment_type {
   @@schema("support")
 }
 
-// ========================
-// NUEVOS MODELOS: incidents y procedures
-// ========================
+model ticket {
+  id               String    @id @default(cuid())
+  issue_type       String
+  key              String    @unique
+  title            String
+  label            String
+  enterprise       String
+  created          DateTime
+  updated          DateTime
+  creator          String
+  status           String
+  category_status  String
+  replacement_count Int?
+  is_replacement   Boolean   @default(false)
+  is_assignment    Boolean   @default(false)
+  is_active        Boolean   @default(true)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+  last_sync        DateTime  @default(now())
 
-model incident {
-  id          String       @id @default(cuid())
-  name        String
-  type        String
-  description String?
-  created_at  DateTime     @default(now())
-  updated_at  DateTime     @updatedAt
-
-  // relación a procedimientos
-  procedures incident_procedure[]
-
-  @@map("incident")
-  @@schema("support")
-}
-
-model procedure {
-  id          String       @id @default(cuid())
-  title       String
-  content     String       // descripción detallada o pasos
-  created_at  DateTime     @default(now())
-  updated_at  DateTime     @updatedAt
-
-  incidents incident_procedure[]
-
-  @@map("procedure")
-  @@schema("support")
-}
-
-// tabla pivot para relación M:N
-model incident_procedure {
-  incident_id  String
-  procedure_id String
-  incident     incident  @relation(fields: [incident_id], references: [id], onDelete: Cascade)
-  procedure    procedure @relation(fields: [procedure_id], references: [id], onDelete: Cascade)
-
-  @@id([incident_id, procedure_id])
-  @@map("incident_procedure")
-  @@schema("support")
+  @@index([key])
+  @@index([label])
+  @@index([status])
+  @@index([creator])
+  @@index([is_active])
+  @@map("ticket")
+  @@schema("phones")
 }

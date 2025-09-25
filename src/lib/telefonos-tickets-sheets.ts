@@ -1,13 +1,25 @@
 import { google } from 'googleapis';
-import { format, parseISO, isAfter, isBefore, addDays, parse } from 'date-fns';
+import { format, parseISO, isAfter, isBefore, addDays, parse, isValid } from 'date-fns';
 import type { 
   TelefonosTicketRecord, 
-  SheetDataRaw, 
   TelefonosTicketsAnalytics,
   DemandProjection,
   StockAnalysis,
   TelefonosTicketsFilters 
 } from './types';
+
+const SHEET_DATE_PATTERNS = [
+  'd/M/yyyy H:mm:ss',
+  'd/M/yyyy HH:mm:ss',
+  'd/M/yyyy H:mm',
+  'd/M/yyyy HH:mm',
+  'dd/MM/yyyy H:mm:ss',
+  'dd/MM/yyyy HH:mm:ss',
+  'dd/MM/yyyy H:mm',
+  'dd/MM/yyyy HH:mm',
+  'yyyy-MM-dd HH:mm:ss',
+  'yyyy-MM-dd',
+];
 
 // Helper function to normalize date format from DD/MM/YYYY HH:mm:ss to ISO string
 function normalizeDateString(dateString: string): string {
@@ -15,30 +27,34 @@ function normalizeDateString(dateString: string): string {
     return '';
   }
 
+  const trimmed = dateString.trim();
+  const containsTime = trimmed.includes(':');
+
   try {
-    // Check if it's already in ISO format or similar
-    if (dateString.includes('-') && dateString.length >= 10) {
-      return dateString;
-    }
-
-    // Parse DD/MM/YYYY HH:mm:ss format
-    // Example: "31/05/2024 14:55:20"
-    const parsed = parse(dateString, 'dd/MM/yyyy HH:mm:ss', new Date());
-    
-    if (isNaN(parsed.getTime())) {
-      // Try without time part: DD/MM/YYYY
-      const parsedDateOnly = parse(dateString, 'dd/MM/yyyy', new Date());
-      if (!isNaN(parsedDateOnly.getTime())) {
-        return format(parsedDateOnly, 'yyyy-MM-dd');
+    for (const pattern of SHEET_DATE_PATTERNS) {
+      const parsed = parse(trimmed, pattern, new Date());
+      if (isValid(parsed)) {
+        return containsTime || pattern.includes('H')
+          ? format(parsed, 'yyyy-MM-dd HH:mm:ss')
+          : format(parsed, 'yyyy-MM-dd');
       }
-      console.warn('Unable to parse date:', dateString);
-      return dateString; // Return original if can't parse
     }
 
-    return format(parsed, 'yyyy-MM-dd HH:mm:ss');
+    const isoParsed = parseISO(trimmed);
+    if (isValid(isoParsed)) {
+      return containsTime ? format(isoParsed, 'yyyy-MM-dd HH:mm:ss') : format(isoParsed, 'yyyy-MM-dd');
+    }
+
+    const fallback = new Date(trimmed);
+    if (!Number.isNaN(fallback.getTime())) {
+      return containsTime ? format(fallback, 'yyyy-MM-dd HH:mm:ss') : format(fallback, 'yyyy-MM-dd');
+    }
+
+    console.warn('Unable to parse date:', dateString);
+    return trimmed;
   } catch (error) {
     console.warn('Error normalizing date:', dateString, error);
-    return dateString; // Return original if error
+    return trimmed;
   }
 }
 
@@ -66,7 +82,7 @@ export async function getGoogleSheetsAuth(writePermissions = false) {
 }
 
 // Get data from TELEFONOS_TICKETS sheet range
-export async function getTelefonosTicketsSheetData(range = 'TELEFONOS_TICKETS!A:G'): Promise<SheetDataRaw> {
+export async function getTelefonosTicketsSheetData(range = 'TELEFONOS_TICKETS!A:K'): Promise<any> {
   try {
     const sheets = await getGoogleSheetsAuth();
     
@@ -103,7 +119,11 @@ export function convertRowToTelefonosTicketRecord(row: string[], headers: string
   headers.forEach((header, index) => {
     const normalizedHeader = header.toLowerCase().trim();
     const value = row[index] || '';
-    
+
+    if (!normalizedHeader) {
+      return;
+    }
+
     // Map headers to TELEFONOS_TICKETS interface fields (A-G columns)
     switch (normalizedHeader) {
       case 'issue_type':
@@ -139,12 +159,28 @@ export function convertRowToTelefonosTicketRecord(row: string[], headers: string
       case 'fecha_actualizacion':
         record.updated = normalizeDateString(value);
         break;
+      case 'creator':
+      case 'creador':
+      case 'responsable':
+      case 'usuario':
+        record.creator = value;
+        break;
+      case 'status':
+      case 'estado':
+        record.status = value;
+        break;
+      case 'category_status':
+      case 'category status':
+      case 'categoria_status':
+      case 'categoria status':
+      case 'categoria':
+        record.category_status = value;
+        break;
       default:
         console.log(`Unmapped TELEFONOS_TICKETS header: "${header}" (normalized: "${normalizedHeader}")`);
         break;
     }
   });
-  
   // Ensure all fields have default values
   return {
     issue_type: record.issue_type || '',
@@ -154,6 +190,9 @@ export function convertRowToTelefonosTicketRecord(row: string[], headers: string
     enterprise: record.enterprise || '',
     created: record.created || '',
     updated: record.updated || '',
+    creator: record.creator || '',
+    status: record.status || '',
+    category_status: record.category_status || '',
   };
 }
 
@@ -165,7 +204,7 @@ export async function getTelefonosTicketRecords(): Promise<TelefonosTicketRecord
     console.log('TELEFONOS_TICKETS headers received:', sheetData.headers);
     console.log('Number of ticket rows:', sheetData.rows.length);
     
-    const records = sheetData.rows.map((row, index) => {
+    const records = sheetData.rows.map((row:any, index:number) => {
       if (index === 0) {
         console.log('First ticket row data:', row);
         console.log('Row length:', row.length, 'Headers length:', sheetData.headers.length);
@@ -520,3 +559,4 @@ export function getTelefonosTicketsFilterOptions(records: TelefonosTicketRecord[
     labels
   };
 }
+

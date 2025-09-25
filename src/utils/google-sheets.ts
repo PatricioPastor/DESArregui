@@ -23,7 +23,7 @@ export async function getGoogleSheetsAuth(writePermissions = false) {
   }
 }
 
-export async function getTelefonosTicketsSheetData(range = 'TELEFONOS_TICKETS!A:G'): Promise<SheetDataRaw> {
+export async function getTelefonosTicketsSheetData(range = 'TELEFONOS_TICKETS!A:J'): Promise<SheetDataRaw> {
   try {
     const sheets = await getGoogleSheetsAuth();
     const response = await sheets.spreadsheets.values.get({

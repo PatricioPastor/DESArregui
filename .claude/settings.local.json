@@ -13,7 +13,12 @@
       "Read(/C:\\Users\\patri\\Dev\\main\\DESA\\DESArregui\\src\\app\\api\\soti/**)",
       "Read(/C:\\Users\\patri\\Dev\\main\\DESA\\DESArregui\\src\\app\\(dashboard)\\soti/**)",
       "Read(/C:\\Users\\patri\\Dev\\main\\DESA\\DESArregui\\src\\components\\dashboard/**)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npx prisma migrate dev:*)",
+      "Bash(npx prisma migrate reset:*)",
+      "Bash(npx prisma:*)",
+      "Bash(del step1_add_enum_values.sql step2_migrate_data.sql update_device_status.sql safe_enum_migration.sql)",
+      "Bash(bun run:*)"
     ],
     "deny": []
   }

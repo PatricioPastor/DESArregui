@@ -16,13 +16,14 @@ This is a Mesa de Ayuda Hub application for Grupo DESA, built on top of Untitled
 
 ### Business Context
 - **Purpose**: Mobile support level 2 dashboard for tracking IMEI devices, connections, and tickets
-- **Data Sources**: Google Sheets (BASE with SOTI/eTarifacion/STOCK/EDESA lookups)
-- **Key Features**: 
-  - Track connection flags ("Usando"/inactive >7 days)
-  - Line/plan management and assignment status
-  - Automated email alerts for inactive devices
-  - KPI dashboards for stock projections
-  - Filter by distributor (EDEA/EDEN/etc.)
+- **Architecture**: Database-first with PostgreSQL + Prisma, Google Sheets sync via dedicated endpoints
+- **Key Features**:
+  - Real-time SOTI device tracking with connection status
+  - Ticket management with R-X pattern extraction (R-1, R-2 for replacements)
+  - Inventory management with status tracking and SOTI correlation
+  - Advanced search and filtering across all data sources
+  - Real-time analytics and KPI dashboards
+  - Sync buttons for manual data updates from external sources
 
 ### Target Users
 - Mesa de Ayuda team (level 2 mobile support)  
@@ -69,8 +70,19 @@ CLAUDE_API_KEY=your_claude_key
 5. Share your Google Sheet with the service account email
 
 ### API Endpoints
+
+#### Synchronization Endpoints (Data Import)
+- `/api/sync/soti` - POST: Sync SOTI devices from external sources
+- `/api/sync/tickets` - POST: Sync tickets with R-X pattern extraction
+- `/api/sync/stock` - POST: Sync inventory/stock data
+
+#### Data Endpoints (Database Queries)
+- `/api/soti` - GET: SOTI devices with search/filters
+- `/api/telefonos-tickets` - GET: Tickets with real-time analytics
+- `/api/stock` - GET: Inventory with SOTI correlation
+- `/api/models` - GET: Phone models for dropdowns
+- `/api/distributors` - GET: Distributors for dropdowns
 - `/api/test` - Test endpoint to verify configuration
-- `/api/base` - GET: Pull all BASE data from Google Sheets
 
 ## Architecture
 
@@ -118,3 +130,8 @@ Uses Tailwind CSS with custom design tokens. The `cx` utility function handles c
 
 ### Theme System
 Supports light/dark themes for different work environments and user preferences.
+- Librerias: UntitledUI (@componentes lo usable) - BetterAuth - Supabase - sonner - prisma
+- Recordá que esto tiene que ser un proyecto funcional y tecnicamente solido, pero priorizando lo necesario y lo funcional por sobre las validaciones sin sentido o bien, que sobrevaliden las cosas, en caso de que algo consideres que tiene más de 3 validaciones, consultar sobre las posibles y yo elijo antes de que lo apliques como solución
+- recordá usar la librería de @src\components\ que es la librería de UNtitledUI y los disenos tienen que ser funcionales.
+- los archivos se nombra en ingles y co - y minuscula
+- cada archivo que veas que no está bien seteado, ponele el nombre correcto en lowercase y con - en los espacios
