@@ -35,20 +35,37 @@ export default function TelefonosTicketsDashboard() {
 
     const replacementsPercentage = data?.kpis.replacement_rate?.toFixed(1) || "0";
 
+    const totalSolicitudes = (data?.kpis.total_demand || 0) + (data?.kpis.pending_demand || 0);
+    const pendingPercentage = totalSolicitudes > 0
+        ? (((data?.kpis.pending_demand || 0) / totalSolicitudes) * 100).toFixed(0)
+        : "0";
+
     const kpiConfigs = [
         {
             label: "Solicitudes",
             icon: HeartHand,
-            value: loading ? "..." : data?.kpis.total_demand || 0,
-            subtitle: loading ? "" : `${data?.kpis.total_tickets} tickets generados`,
+            value: loading ? "..." : totalSolicitudes,
+            subtitle: loading ? "" : (data?.kpis.pending_demand || 0) > 0
+                ? `${data?.kpis.pending_demand} pendientes de entrega (${pendingPercentage}%)`
+                : `${data?.kpis.total_tickets} tickets generados`,
             modalContent: {
                 title: "Total de Teléfonos Solicitados",
                 description: `Demanda total de teléfonos durante el período ${dateRange.start} a ${dateRange.end}`,
                 details: [
                     {
                         label: "Total Solicitado",
+                        value: totalSolicitudes,
+                        description: "Suma de teléfonos entregados + pendientes"
+                    },
+                    {
+                        label: "Teléfonos Entregados",
                         value: data?.kpis.total_demand || 0,
-                        description: "Suma de todos los teléfonos (asignaciones + recambios)"
+                        description: "Equipos ya entregados a los usuarios"
+                    },
+                    {
+                        label: "Pendientes de Entrega",
+                        value: data?.kpis.pending_demand || 0,
+                        description: "Equipos en proceso de entrega"
                     },
                     {
                         label: "Tickets Procesados",
@@ -58,21 +75,19 @@ export default function TelefonosTicketsDashboard() {
                     {
                         label: "Promedio por Ticket",
                         value: data?.kpis.total_tickets
-                            ? ((data.kpis.total_demand / data.kpis.total_tickets).toFixed(2))
+                            ? ((totalSolicitudes / data.kpis.total_tickets).toFixed(2))
                             : 0,
                         description: "Teléfonos promedio por ticket"
-                    },
-                    {
-                        label: "Días en Período",
-                        value: data?.period.days || 0,
-                        description: `Del ${data?.period.start_date} al ${data?.period.end_date}`
                     }
                 ],
                 insights: [
                     `Promedio de ${data?.kpis.total_tickets && data?.period.days ? (data.kpis.total_tickets / data.period.days * 30).toFixed(1) : 0} tickets por mes`,
+                    (data?.kpis.pending_demand || 0) > 0
+                        ? `${data!.kpis.pending_demand} teléfonos esperando entrega (${pendingPercentage}% del total)`
+                        : "Todos los teléfonos han sido entregados",
                     `${assignmentsPercentage}% son asignaciones nuevas`,
                     `${replacementsPercentage}% son recambios de equipos`,
-                    (data?.kpis.total_demand || 0) > 80
+                    totalSolicitudes > 80
                         ? "Demanda alta - Revisar niveles de stock"
                         : "Demanda dentro de rangos normales"
                 ]

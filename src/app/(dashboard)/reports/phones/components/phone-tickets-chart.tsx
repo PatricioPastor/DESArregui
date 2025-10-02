@@ -51,8 +51,15 @@ export function PhoneTicketsChart({ monthlyData, loading }: PhoneTicketsChartPro
         key: monthLabel,
         value: item.projected_demand || 0,
       });
+    } else if (item.demand === 0 && item.projected_demand && item.projected_demand > 0) {
+      // Mes actual sin datos: mostrar solo proyección
+      chartData.push({
+        group: "Proyectado",
+        key: monthLabel,
+        value: item.projected_demand,
+      });
     } else {
-      // Meses pasados: mostrar demanda real
+      // Meses pasados y mes actual con datos: mostrar demanda real
       chartData.push({
         group: "Real",
         key: monthLabel,

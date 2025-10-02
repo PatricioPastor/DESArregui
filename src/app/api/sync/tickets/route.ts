@@ -37,7 +37,7 @@ const SHEET_SYNC_DATE_PATTERNS = [
   'yyyy-MM-dd',
 ];
 
-// Extract replacement count from title (R-1, R-2, etc.)
+// Extract replacement count from title (R-1, R-2, etc.) for delivered phones
 const extractReplacementInfo = (title: string) => {
   const match = title.match(/R-(\d+)/i);
   return {
@@ -46,14 +46,23 @@ const extractReplacementInfo = (title: string) => {
   };
 };
 
-// Determine if ticket is assignment type
-const isAssignmentTicket = (label: string) => {
-  return label === 'ASG-CEL';
+// Extract pending count from title (P-1, P-2, etc.) for pending delivery phones
+const extractPendingInfo = (title: string) => {
+  const match = title.match(/P-(\d+)/i);
+  return {
+    isPending: !!match,
+    pendingCount: match ? parseInt(match[1], 10) : null,
+  };
 };
 
-// Determine if ticket is replacement type
+// Determine if ticket is assignment type (supports semicolon-separated labels)
+const isAssignmentTicket = (label: string) => {
+  return label.includes('ASG-CEL');
+};
+
+// Determine if ticket is replacement type (supports semicolon-separated labels)
 const isReplacementTicket = (label: string) => {
-  return label === 'REC-CEL' || label === 'REC-CEL';
+  return label.includes('REC-CEL');
 };
 
 // Parse date strings coming from the spreadsheet into Date objects
@@ -88,6 +97,7 @@ const parseSheetDate = (dateString: string) => {
 // Map TelefonosTicketRecord to database fields
 const mapTicketRecordToDB = (record: TelefonosTicketRecord) => {
   const { isReplacement, replacementCount } = extractReplacementInfo(record.title);
+  const { isPending, pendingCount } = extractPendingInfo(record.title);
   const isAssignment = isAssignmentTicket(record.label);
   const isReplacementLabel = isReplacementTicket(record.label);
 
@@ -107,6 +117,7 @@ const mapTicketRecordToDB = (record: TelefonosTicketRecord) => {
     status: record.status || 'Unknown',
     category_status: record.category_status || 'Unknown',
     replacement_count: replacementCount,
+    pending_count: pendingCount,
     is_replacement: finalIsReplacement,
     is_assignment: finalIsAssignment,
     is_active: true,

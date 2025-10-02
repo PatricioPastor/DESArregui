@@ -4,6 +4,7 @@ export interface PhonesSummaryData {
   kpis: {
     total_tickets: number;
     total_demand: number;
+    pending_demand: number;
     assignments: number;
     replacements: number;
     replacement_rate: number;

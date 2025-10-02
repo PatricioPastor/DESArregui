@@ -132,7 +132,8 @@ export function TicketsTable({
     return (
       <Badge
         size="sm"
-        color={isAssignment ? 'brand' : 'warning'}
+        
+        color={isAssignment ? 'blue-light' : 'warning'}
       >
         {isAssignment ? 'Asignación' : 'Recambio'}
       </Badge>
@@ -184,8 +185,8 @@ export function TicketsTable({
             onSortChange={setSortDescriptor}
           >
             <Table.Header>
-              <Table.Head id="key" label="Ticket" isRowHeader allowsSorting className="w-32" />
-              <Table.Head id="title" label="Título" allowsSorting />
+              <Table.Head id="title" label="Título" isRowHeader allowsSorting className="w-60"  />
+    
               <Table.Head id="enterprise" label="Distribuidora" allowsSorting className="w-40" />
               <Table.Head id="creator" label="Creador" allowsSorting className="w-36 hidden lg:table-cell" />
               <Table.Head id="status" label="Estado" allowsSorting className="w-32" />
@@ -198,27 +199,23 @@ export function TicketsTable({
               {(ticket) => (
                 <Table.Row id={`ticket-${ticket.id}`}>
                   <Table.Cell>
-                    <span className="font-mono text-xs font-medium text-brand">
-                      {ticket.key}
-                    </span>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <div className="flex flex-col">
+                  <div className="flex flex-col">
                       <span className="text-sm font-medium line-clamp-1">
                         {ticket.title || "-"}
                       </span>
                       {ticket.label && (
-                        <span className="text-xs text-tertiary line-clamp-1">
-                          {ticket.label}
+                         <span className="font-mono text-primary text-xs font-medium">
+                          {ticket.key}
                         </span>
                       )}
                     </div>
                   </Table.Cell>
+
                   <Table.Cell>
                     <span className="text-sm">{ticket.enterprise || "-"}</span>
                   </Table.Cell>
                   <Table.Cell className="hidden lg:table-cell">
-                    <span className="text-sm text-secondary">{ticket.creator || "-"}</span>
+                    <span className="font-medium text-secondary">{ticket.creator || "-"}</span>
                   </Table.Cell>
                   <Table.Cell>
                     {getStatusBadge(ticket.status)}

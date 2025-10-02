@@ -228,6 +228,7 @@ model ticket {
   status            String
   category_status   String
   replacement_count Int?
+  pending_count     Int?
   is_replacement    Boolean  @default(false)
   is_assignment     Boolean  @default(false)
   is_active         Boolean  @default(true)

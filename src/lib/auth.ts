@@ -26,6 +26,7 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
   },
+  
    hooks: {
     // Email/password: validamos antes de ejecutar el endpoint
     // before: createAuthMiddleware(async (ctx) => {
