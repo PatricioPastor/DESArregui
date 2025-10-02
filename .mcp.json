@@ -1,0 +1,31 @@
+{
+    "mcpServers": {
+        "postgres": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-postgres",
+                "postgresql://postgres.yowafgrayhrihobmztpa:des5rregui@aws-1-sa-east-1.pooler.supabase.com:5432/postgres"
+            ],
+            "disabled": false
+        },
+        "context7": {
+            "type": "http",
+            "url": "https://mcp.context7.com/mcp",
+            "headers": {
+                "CONTEXT7_API_KEY": "ctx7sk-f5bafc2b-955a-42c9-8309-fe81a98b3ada"
+            }
+        },
+        "supabase-mcp-server": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@supabase/mcp-server-supabase@latest",
+                "--access-token",
+                "sbp_23e9ba76b3c8a348fd4d3ab70e990973dc48a36f"
+            ],
+            "env": {},
+            "disabled": false
+        }
+    }
+}

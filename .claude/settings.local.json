@@ -18,7 +18,10 @@
       "Bash(npx prisma migrate reset:*)",
       "Bash(npx prisma:*)",
       "Bash(del step1_add_enum_values.sql step2_migrate_data.sql update_device_status.sql safe_enum_migration.sql)",
-      "Bash(bun run:*)"
+      "Bash(bun run:*)",
+      "Bash(psql:*)",
+      "Bash(cat:*)",
+      "Bash(del test_output.json)"
     ],
     "deny": []
   }

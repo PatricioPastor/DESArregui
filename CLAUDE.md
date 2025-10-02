@@ -47,6 +47,13 @@ npx untitledui@latest add
 
 # Test endpoints
 bun test
+
+# Prisma commands (use bunx, not npx)
+bunx prisma db pull        # Pull schema from database
+bunx prisma generate       # Generate Prisma Client
+bunx prisma migrate dev    # Create and apply migrations
+bunx prisma migrate reset  # Reset database
+bunx prisma studio         # Open Prisma Studio
 ```
 
 ## Environment Setup

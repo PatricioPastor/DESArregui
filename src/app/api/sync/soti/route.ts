@@ -76,8 +76,8 @@ export async function POST(request: NextRequest) {
 
     const sheetData = await getSotiSheetData();
     const devicesFromSheet = sheetData.rows
-      .map(row => convertRowToSOTIRecord(row, sheetData.headers))
-      .filter(device => device.imei && device.nombre_dispositivo);
+      .map((row:any) => convertRowToSOTIRecord(row, sheetData.headers))
+      .filter((device:any) => device.imei && device.nombre_dispositivo);
 
     if (providedDevicesCount && providedDevicesCount !== devicesFromSheet.length) {
       console.info(
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
     const devices = devicesFromSheet;
 
     // Get all current IMEIs from incoming data
-    const incomingIMEIs = devices.map(d => d.imei).filter(Boolean);
+    const incomingIMEIs = devices.map((d:any) => d.imei).filter(Boolean);
 
     // Mark devices as inactive if they're not in the incoming data
     if (incomingIMEIs.length > 0) {
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
     }
 
     for (const batch of batches) {
-      const batchPromises = batch.map(async (device) => {
+      const batchPromises = batch.map(async (device:any) => {
         try {
           // Validation
           if (!device.imei || !device.nombre_dispositivo) {

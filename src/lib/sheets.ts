@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
 import * as XLSX from 'xlsx';
-import type { IMEIRecord, StockRecord, SheetDataRaw } from './types';
+import type { IMEIRecord, StockRecord } from './types';
+import { SheetDataRaw } from '@/utils/types';
 
 // Google Sheets API authentication with write permissions
 export async function getGoogleSheetsAuth(writePermissions = false) {

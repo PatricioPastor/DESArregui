@@ -148,28 +148,28 @@ model assignment {
 }
 
 model soti_device {
-  id                    String    @id @default(cuid())
-  device_name           String    @unique
-  assigned_user         String?
-  model                 String?
-  imei                  String    @unique
-  route                 String?
-  registration_time     String?
-  enrollment_time       String?
-  connection_date       String?
-  disconnection_date    String?
-  phone                 String?
-  bssid_network         String?
-  ssid_network          String?
-  jira_ticket_id        String?
-  custom_phone          String?
-  custom_email          String?
-  android_enter_email   String?
-  location              String?
-  is_active             Boolean   @default(true)
-  created_at            DateTime  @default(now())
-  updated_at            DateTime  @updatedAt
-  last_sync             DateTime  @default(now())
+  id                  String   @id @default(cuid())
+  device_name         String   @unique
+  assigned_user       String?
+  model               String?
+  imei                String   @unique
+  route               String?
+  registration_time   String?
+  enrollment_time     String?
+  connection_date     String?
+  disconnection_date  String?
+  phone               String?
+  bssid_network       String?
+  ssid_network        String?
+  jira_ticket_id      String?
+  custom_phone        String?
+  custom_email        String?
+  android_enter_email String?
+  location            String?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+  last_sync           DateTime @default(now())
+  is_active           Boolean  @default(true)
 
   @@index([imei])
   @@index([device_name])
@@ -215,6 +215,35 @@ model incident_procedure {
   @@schema("support")
 }
 
+model ticket {
+  id                String   @id @default(cuid())
+  issue_type        String
+  key               String   @unique
+  title             String
+  label             String
+  enterprise        String
+  created           DateTime
+  updated           DateTime
+  creator           String
+  status            String
+  category_status   String
+  replacement_count Int?
+  is_replacement    Boolean  @default(false)
+  is_assignment     Boolean  @default(false)
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  last_sync         DateTime @default(now())
+
+  @@index([key])
+  @@index([label])
+  @@index([status])
+  @@index([creator])
+  @@index([is_active])
+  @@map("ticket")
+  @@schema("phones")
+}
+
 enum device_status {
   NEW
   ASSIGNED
@@ -231,33 +260,4 @@ enum assignment_type {
   UNASSIGN
 
   @@schema("support")
-}
-
-model ticket {
-  id               String    @id @default(cuid())
-  issue_type       String
-  key              String    @unique
-  title            String
-  label            String
-  enterprise       String
-  created          DateTime
-  updated          DateTime
-  creator          String
-  status           String
-  category_status  String
-  replacement_count Int?
-  is_replacement   Boolean   @default(false)
-  is_assignment    Boolean   @default(false)
-  is_active        Boolean   @default(true)
-  created_at       DateTime  @default(now())
-  updated_at       DateTime  @updatedAt
-  last_sync        DateTime  @default(now())
-
-  @@index([key])
-  @@index([label])
-  @@index([status])
-  @@index([creator])
-  @@index([is_active])
-  @@map("ticket")
-  @@schema("phones")
 }
