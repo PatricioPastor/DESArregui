@@ -17,6 +17,11 @@ const inter = Inter({
 export const metadata: Metadata = {
     title: "DESArregui",
     description: "Dashboard centralizado para gestión de dispositivos IMEI y soporte móvil nivel 2",
+    icons: {
+        icon: '/favicon-desa.png',
+        shortcut: '/favicon-desa.png',
+        apple: '/favicon-desa.png',
+    },
 };
 
 export const viewport: Viewport = {
