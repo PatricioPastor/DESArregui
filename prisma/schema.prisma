@@ -86,10 +86,11 @@ model phone_model {
 }
 
 model distributor {
-  id        String     @id @default(cuid())
-  name      String     @unique
-  devices   device[]
-  purchases purchase[]
+  id          String       @id @default(cuid())
+  name        String       @unique
+  devices     device[]
+  purchases   purchase[]
+  assignments assignment[]
 
   @@map("distributor")
   @@schema("phones")
@@ -134,15 +135,32 @@ model device {
 }
 
 model assignment {
-  id          String          @id @default(cuid())
-  at          DateTime        @default(now())
-  assigned_to String?
-  device_id   String
-  ticket_id   String?
-  type        assignment_type
-  device      device          @relation(fields: [device_id], references: [id], onDelete: Cascade)
+  id                  String          @id @default(cuid())
+  at                  DateTime        @default(now())
+  assigned_to         String? // Deprecated - usar assignee_name
+  assignee_name       String?
+  assignee_phone      String?
+  distributor_id      String?
+  delivery_location   String?
+  contact_details     String?
+  shipping_voucher_id String?         @unique
+  expects_return      Boolean         @default(false)
+  return_device_imei  String?
+  device_id           String?
+  soti_device_id      String?
+  ticket_id           String?
+  type                assignment_type
+  status              String          @default("active")
+
+  // Relations
+  device      device?      @relation(fields: [device_id], references: [id], onDelete: Cascade)
+  soti_device soti_device? @relation(fields: [soti_device_id], references: [id])
+  distributor distributor? @relation(fields: [distributor_id], references: [id])
 
   @@index([device_id, at])
+  @@index([soti_device_id])
+  @@index([distributor_id])
+  @@index([status])
   @@map("assignment")
   @@schema("phones")
 }
@@ -152,7 +170,7 @@ model soti_device {
   device_name         String   @unique
   assigned_user       String?
   model               String?
-  imei                String   @unique
+  imei                String
   route               String?
   registration_time   String?
   enrollment_time     String?
@@ -166,15 +184,21 @@ model soti_device {
   custom_email        String?
   android_enter_email String?
   location            String?
+  status              String   @default("NEW")
   created_at          DateTime @default(now())
   updated_at          DateTime @updatedAt
   last_sync           DateTime @default(now())
   is_active           Boolean  @default(true)
 
+  // Relations
+  assignments assignment[]
+
+  @@unique([imei, device_name])
   @@index([imei])
   @@index([device_name])
   @@index([assigned_user])
   @@index([is_active])
+  @@index([status])
   @@map("soti_device")
   @@schema("phones")
 }

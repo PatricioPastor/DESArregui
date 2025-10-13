@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowCircleRight, Box, HeartHand, Plus, Stars02 } from "@untitledui/icons";
 import { DateRangePicker } from "@/components/application/date-picker/date-range-picker";
 import { Button } from "@/components/base/buttons/button";
+import { Select } from "@/components/base/select/select";
 import { KpiCardWithModal } from "@/components/dashboard/kpi-card-with-modal";
 import { SyncTicketsButton } from "@/components/dashboard/sync-tickets-button";
 import { PhoneTicketsChart } from "./components/phone-tickets-chart";
@@ -17,11 +18,38 @@ const getStockStandard = (models:any[]) => {
     return standard ? standard.count : 0;
 }
 
+// Quarter options
+const quarterOptions = [
+    { id: "Q1", label: "Q1 2025", value: "Q1" },
+    { id: "Q2", label: "Q2 2025", value: "Q2" },
+    { id: "Q3", label: "Q3 2025", value: "Q3" },
+    { id: "Q4", label: "Q4 2025", value: "Q4" },
+    { id: "custom", label: "Personalizado", value: "custom" },
+];
+
+// Get date range for quarters
+const getQuarterDateRange = (quarter: string): { start: string; end: string } => {
+    const year = new Date().getFullYear();
+
+    switch (quarter) {
+        case "Q1":
+            return { start: `${year}-01-01`, end: `${year}-03-31` };
+        case "Q2":
+            return { start: `${year}-04-01`, end: `${year}-06-30` };
+        case "Q3":
+            return { start: `${year}-07-01`, end: `${year}-09-30` };
+        case "Q4":
+            return { start: `${year}-10-01`, end: `${year}-12-31` };
+        default:
+            return { start: `${year}-01-01`, end: `${year}-12-31` };
+    }
+};
+
 export default function TelefonosTicketsDashboard() {
-    const [dateRange, setDateRange] = useState<{start?: string; end?: string}>({
-        start: "2025-04-01",
-        end: "2025-06-30"
-    });
+    const [selectedQuarter, setSelectedQuarter] = useState<string>("Q2");
+    const [dateRange, setDateRange] = useState<{start?: string; end?: string}>(
+        getQuarterDateRange("Q2")
+    );
 
     const { data, loading, error, refetch } = usePhonesSummary({
         startDate: dateRange.start,
@@ -198,10 +226,25 @@ export default function TelefonosTicketsDashboard() {
                     },
                     {
                         label: "Cobertura Estimada",
-                        value: data?.kpis.assignments && data?.period.days && data?.stock.available
-                            ? `${Math.round((data.stock.available / (data.kpis.assignments / data.period.days * 30)))} meses`
-                            : "N/A",
-                        description: "Meses de cobertura al ritmo actual"
+                        value: (() => {
+                            if (!data?.kpis.assignments || !data?.period.days || !data?.stock.models) return "N/A";
+                            
+                            // Buscar específicamente los A16
+                            const a16Model = data.stock.models.find(model => 
+                                model.model.toLowerCase().includes('a16')
+                            );
+                            
+                            if (!a16Model || a16Model.count === 0) return "N/A";
+                            
+                            // Usar valor fijo estimativo de 24 asignaciones por mes
+                            const consumoMensualEstimado = 24;
+                            
+                            // Calcular meses de cobertura: Stock A16 / Consumo mensual estimado
+                            const mesesCobertura = Math.floor(a16Model.count / consumoMensualEstimado);
+                            
+                            return `${mesesCobertura} meses`;
+                        })(),
+                        description: "Meses de cobertura con stock A16 (estimado 24/mes)"
                     },
                     {
                         label: "Top Modelo",
@@ -213,17 +256,17 @@ export default function TelefonosTicketsDashboard() {
                             : ""
                     }
                 ],
-                insights: [
-                    (data?.stock.available || 0) < 50
-                        ? "🔴 Stock bajo - Considerar reposición urgente"
-                        : (data?.stock.available || 0) < 100
-                        ? "🟡 Stock moderado - Planificar reposición"
-                        : "🟢 Stock saludable",
-                    `Diversidad: ${data?.stock.models?.length || 0} modelos diferentes`,
-                    data?.stock.models?.[0]
-                        ? `Modelo más disponible: ${data.stock.models[0].brand} ${data.stock.models[0].model} (${data.stock.models[0].count} unidades)`
-                        : "Sin información de modelos"
-                ]
+                // insights: [
+                //     (data?.stock.available || 0) < 50
+                //         ? "🔴 Stock bajo - Considerar reposición urgente"
+                //         : (data?.stock.available || 0) < 100
+                //         ? "🟡 Stock moderado - Planificar reposición"
+                //         : "🟢 Stock saludable",
+                //     `Diversidad: ${data?.stock.models?.length || 0} modelos diferentes`,
+                //     data?.stock.models?.[0]
+                //         ? `Modelo más disponible: ${data.stock.models[0].brand} ${data.stock.models[0].model} (${data.stock.models[0].count} unidades)`
+                //         : "Sin información de modelos"
+                // ]
             }
         }
     ];
@@ -249,7 +292,31 @@ export default function TelefonosTicketsDashboard() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <Select
+                        label=""
+                        placeholder="Seleccionar período"
+                        selectedKey={selectedQuarter}
+                        onSelectionChange={(key) => {
+                            const quarter = key as string;
+                            setSelectedQuarter(quarter);
+
+                            if (quarter !== "custom") {
+                                const range = getQuarterDateRange(quarter);
+                                setDateRange(range);
+                            }
+                        }}
+                        items={quarterOptions}
+                        className="min-w-40"
+                    >
+                        {(item) => (
+                            <Select.Item id={item.id}>
+                                {item.label}
+                            </Select.Item>
+                        )}
+                    </Select>
+
                     <DateRangePicker
+                        isDisabled={selectedQuarter !== "custom"}
                         onChange={(range) => {
                             if (range?.start && range?.end) {
                                 const startDate = `${range.start.year}-${String(range.start.month).padStart(2, '0')}-${String(range.start.day).padStart(2, '0')}`;
@@ -258,7 +325,7 @@ export default function TelefonosTicketsDashboard() {
                             }
                         }}
                     />
-                    <Button color="primary" size="sm">Exportar</Button>
+                    {/* <Button color="primary" size="sm">Exportar</Button> */}
                     <SyncTicketsButton onSyncComplete={() => refetch()} />
                     <Button color="secondary" isDisabled iconLeading={Stars02} size="sm">AI</Button>
                 </div>

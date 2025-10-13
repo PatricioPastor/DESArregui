@@ -178,7 +178,9 @@ export function convertRowToSOTIRecord(row: string[], headers: string[]): any {
         record.correo_custom = value;
         break;
       case 'correo_android_enterprise':
-        record.correo_android_enterprise = value;
+      case 'correo_android_enter':
+        // Normalizamos al nombre que usa el backend (correo_android_enter)
+        record.correo_android_enter = value;
         break;
       case 'ubicacion':
         record.ubicacion = value;

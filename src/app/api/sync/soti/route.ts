@@ -52,7 +52,7 @@ const upsertSOTIDevice = async (record: SOTIRecord) => {
   // Use upsert to handle both insert and update cases
   return await prisma.soti_device.upsert({
     where: {
-      imei: record.imei,
+      device_name: record.nombre_dispositivo,
     },
     update: {
       ...dbData,
@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
     const sheetData = await getSotiSheetData();
     const devicesFromSheet = sheetData.rows
       .map((row:any) => convertRowToSOTIRecord(row, sheetData.headers))
+      // Requerimos IMEI y nombre_dispositivo
       .filter((device:any) => device.imei && device.nombre_dispositivo);
 
     if (providedDevicesCount && providedDevicesCount !== devicesFromSheet.length) {
@@ -111,19 +112,22 @@ export async function POST(request: NextRequest) {
 
     const devices = devicesFromSheet;
 
-    // Get all current IMEIs from incoming data
-    const incomingIMEIs = devices.map((d:any) => d.imei).filter(Boolean);
+    // Get all current DEVICE NAMES from incoming data (license key)
+    const incomingDeviceNames = devices
+      .map((d:any) => d.nombre_dispositivo)
+      .filter(Boolean);
 
-    // Mark devices as inactive if they're not in the incoming data
-    if (incomingIMEIs.length > 0) {
+    // Mark devices as inactive if their device_name is not in the incoming data
+    if (incomingDeviceNames.length > 0) {
       const deactivatedDevices = await prisma.soti_device.updateMany({
         where: {
-          imei: { notIn: incomingIMEIs },
+          device_name: { notIn: incomingDeviceNames },
           is_active: true,
         },
         data: {
           is_active: false,
           updated_at: new Date(),
+          last_sync: new Date(),
         },
       });
       results.deactivated = deactivatedDevices.count;
@@ -140,14 +144,14 @@ export async function POST(request: NextRequest) {
     for (const batch of batches) {
       const batchPromises = batch.map(async (device:any) => {
         try {
-          // Validation
+          // Validation: requerimos IMEI y nombre_dispositivo
           if (!device.imei || !device.nombre_dispositivo) {
             throw new Error('IMEI and nombre_dispositivo are required');
           }
 
-          // Check if device already exists to determine if it's an update
+          // Check if device already exists using device_name to determine if it's an update
           const existingDevice = await prisma.soti_device.findUnique({
-            where: { imei: device.imei },
+            where: { device_name: device.nombre_dispositivo },
           });
 
           await upsertSOTIDevice(device);

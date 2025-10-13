@@ -71,6 +71,7 @@ const DEVICE_INCLUDE = {
       assigned_to: true,
       ticket_id: true,
       at: true,
+      status: true,
     },
     take: 10, // Limit to recent assignments for performance
   },
@@ -146,7 +147,7 @@ const buildInventoryRecord = (device: DeviceWithRelations, sotiDevice?: any): In
     distribuidora_id: device.distributor?.id || null,
     asignado_a: device.assigned_to || '',
     ticket: device.ticket_id || '',
-    is_assigned: Boolean(device.assigned_to),
+    is_assigned: Boolean(device.assigned_to) || assignments.some(a => a.type === 'ASSIGN' && (!a.status || a.status === 'active')),
     created_at: device.created_at.toISOString(),
     updated_at: device.updated_at.toISOString(),
     last_assignment_at: lastAssignment?.at.toISOString() || null,
@@ -392,7 +393,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if device exists in SOTI
-    const sotiDevice = await prisma.soti_device.findUnique({
+    const sotiDevice = await prisma.soti_device.findFirst({
       where: { imei: device.imei },
     });
 

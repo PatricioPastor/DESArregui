@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Edit01, FilterLines, RefreshCw01, SearchLg, Trash01, Plus, Database01 } from "@untitledui/icons";
+import { Edit01, FilterLines, RefreshCw01, SearchLg, Trash01, Plus, Database01, Send01, Eye } from "@untitledui/icons";
 import type { Key, SortDescriptor } from "react-aria-components";
 import { PaginationCardMinimal } from "@/components/application/pagination/pagination";
 import { Table, TableCard, TableRowActionsDropdown } from "@/components/application/table/table";
@@ -12,6 +12,8 @@ import { Input } from "@/components/base/input/input";
 import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
 import { useFilteredStockData } from "@/hooks/use-stock-data";
 import { CreateStockModal } from "@/features/stock/components/create/create-stock-modal";
+import { AssignDeviceModal } from "@/features/stock/components/assign";
+import { ViewAssignmentModal } from "@/features/stock/components/view-assignment";
 import type { InventoryRecord } from "@/lib/types";
 import { cx } from "@/utils/cx";
 import { toast } from "sonner";
@@ -29,6 +31,9 @@ export function StockTable() {
   const [pageSize] = useState(50);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isViewAssignmentModalOpen, setIsViewAssignmentModalOpen] = useState(false);
+  const [selectedDevice, setSelectedDevice] = useState<InventoryRecord | null>(null);
 
   const { data, isLoading, error, lastUpdated, totalRecords, refresh } = useFilteredStockData(searchQuery);
 
@@ -191,7 +196,7 @@ export function StockTable() {
   }
 
   return (
-    <div className="space-y-6 max-h-screen -mt-6">
+    <div className="space-y-6 max-h-screen ">
       
 
       <TableCard.Root>
@@ -280,7 +285,7 @@ export function StockTable() {
                 <Table.Head id="distribuidora" label="Distribuidora" allowsSorting />
                 <Table.Head id="asignado_a" label="Asignado A" allowsSorting />
                 <Table.Head id="ticket" label="Ticket" allowsSorting className="hidden lg:table-cell" />
-                {/* <Table.Head id="actions" className="w-20" /> */}
+                <Table.Head id="actions" className="w-20" />
               </Table.Header>
 
               <Table.Body items={paginatedData}>
@@ -312,17 +317,39 @@ export function StockTable() {
                         </BadgeWithDot>
                       </div>
                     </Table.Cell>
-                    {/* <Table.Cell className="px-3">
+                    <Table.Cell className="px-3">
                       <div className="flex justify-end gap-0.5">
-                        <ButtonUtility 
-                          size="xs" 
-                          color="tertiary" 
-                          tooltip="Asignar" 
-                          icon={Edit01}
-                        />
-                        <ButtonUtility size="xs" color="tertiary" tooltip="Eliminar" icon={Trash01} />
+                        {/* Botón Asignar - Solo si es SOTI, está activo, en estado NEW y sin asignación */}
+                        {item.soti_info?.is_in_soti && 
+                         item.status === 'NEW' && 
+                         !item.is_assigned && (
+                          <ButtonUtility 
+                            size="xs" 
+                            color="secondary" 
+                            tooltip="Asignar dispositivo" 
+                            icon={Send01}
+                            onClick={() => {
+                              setSelectedDevice(item);
+                              setIsAssignModalOpen(true);
+                            }}
+                          />
+                        )}
+                        
+                        {/* Botón Ver Asignación - Solo si está asignado */}
+                        {item.is_assigned && (
+                          <ButtonUtility 
+                            size="xs" 
+                            color="secondary" 
+                            tooltip="Ver detalles de asignación" 
+                            icon={Eye}
+                            onClick={() => {
+                              setSelectedDevice(item);
+                              setIsViewAssignmentModalOpen(true);
+                            }}
+                          />
+                        )}
                       </div>
-                    </Table.Cell> */}
+                    </Table.Cell>
                   </Table.Row>
                 )}
               </Table.Body>
@@ -343,6 +370,30 @@ export function StockTable() {
         open={isAddModalOpen}
         onOpenChange={setIsAddModalOpen}
         onSuccess={refresh}
+      />
+      
+      <AssignDeviceModal
+        open={isAssignModalOpen}
+        onOpenChange={setIsAssignModalOpen}
+        deviceId={selectedDevice?.raw?.soti_device?.id || null}
+        deviceName={selectedDevice?.soti_info?.device_name || null}
+        deviceInfo={{
+          device_name: selectedDevice?.soti_info?.device_name,
+          imei: selectedDevice?.imei,
+          model: selectedDevice?.modelo,
+        }}
+        onSuccess={refresh}
+      />
+      
+      <ViewAssignmentModal
+        open={isViewAssignmentModalOpen}
+        onOpenChange={setIsViewAssignmentModalOpen}
+        deviceId={selectedDevice?.raw?.soti_device?.id || null}
+        deviceInfo={{
+          device_name: selectedDevice?.soti_info?.device_name,
+          imei: selectedDevice?.imei,
+          model: selectedDevice?.modelo,
+        }}
       />
     </div>
   );

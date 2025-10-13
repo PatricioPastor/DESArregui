@@ -21,7 +21,8 @@
       "Bash(bun run:*)",
       "Bash(psql:*)",
       "Bash(cat:*)",
-      "Bash(del test_output.json)"
+      "Bash(del test_output.json)",
+      "Bash(del \"c:\\Users\\patri\\Dev\\main\\DESA\\DESArregui\\src\\middleware.ts\")"
     ],
     "deny": []
   }

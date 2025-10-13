@@ -25,7 +25,7 @@
         "d3": "^7.9.0",
         "date-fns": "^4.1.0",
         "googleapis": "^155.0.0",
-        "jspdf": "^3.0.2",
+        "jspdf": "^3.0.3",
         "jspdf-autotable": "^5.0.2",
         "motion": "^12.23.5",
         "next": "^15.3.5",

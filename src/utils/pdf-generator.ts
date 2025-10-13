@@ -1,6 +1,9 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+// Re-export shipping voucher function
+export { generateShippingVoucherPDF } from './shipping-voucher-pdf';
+
 interface ReportData {
   reportDate: string;
   period: string;

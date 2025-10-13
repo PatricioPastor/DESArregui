@@ -3,18 +3,23 @@
 
 import { SidebarNavigationSimple } from "@/components/application/app-navigation/sidebar-navigation/sidebar-simple";
 import { Header } from "@/components/application/navigation/main-nav";
-import { useSession } from "@/lib/auth-client";
+import { useSession, signOut } from "@/lib/auth-client";
 import { BarChart03, Home01, Package, Phone01 } from "@untitledui/icons";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { Toaster } from "sonner";
+import { useEffect, useMemo } from "react";
+import { toast, Toaster } from "sonner";
 import { useLocale } from 'react-aria-components';
+import { isAdmin } from "@/utils/user-roles";
 
 
-const navigation = [
+const allNavigation = [
   { label: "Mesa de entrada", href: "/", icon: Home01, current: false },
   { label: "SOTI", href: "/soti", icon: Phone01, current: false },
   { label: "Inventario", href: "/stock", icon: Package, current: false },
+  { label: "Reportes", href: "/reports/phones", icon: BarChart03, current: false },
+];
+
+const viewerNavigation = [
   { label: "Reportes", href: "/reports/phones", icon: BarChart03, current: false },
 ];
 
@@ -26,16 +31,49 @@ export default function layout({
 }>) {
 
     const pathname = usePathname()
-
     const router = useRouter();
     const { data: session, isPending } = useSession();
 
+    // Determine navigation items based on user role
+    const navigation = useMemo(() => {
+      if (!session?.user?.email) return viewerNavigation;
+      return isAdmin(session.user.email) ? allNavigation : viewerNavigation;
+    }, [session?.user?.email]);
 
+    // Handle authentication and route protection
     useEffect(() => {
-      if (!isPending && !session?.user) {
-        router.push('/login');
+      // Wait until session check is complete
+      if (isPending) return;
+
+      // If no user session, redirect to login
+      if (!session?.user) {
+        router.replace('/login');
+        return;
       }
-    }, [session, isPending, router]);
+
+      // Check if email domain is allowed
+      const userEmail = session.user.email;
+      if (userEmail && !userEmail.endsWith('@desasa.com.ar')) {
+        toast.error('Dominio no permitido', {
+          description: 'Solo se permiten usuarios con dominio @desasa.com.ar'
+        });
+        signOut();
+        router.replace('/login');
+        return;
+      }
+
+      // If user is not admin, restrict access to admin-only routes
+      if (!isAdmin(session.user.email)) {
+        const restrictedRoutes = ['/', '/soti', '/stock'];
+        const isRestrictedRoute = restrictedRoutes.some(route =>
+          pathname === route || pathname.startsWith(route + '/')
+        );
+
+        if (isRestrictedRoute) {
+          router.replace('/reports/phones');
+        }
+      }
+    }, [session, isPending, pathname, router]);
 
     // Show loading while checking auth
     if (isPending) {
@@ -52,7 +90,7 @@ export default function layout({
     return (
         <div className="relative min-h-dvh w-full">
             {/* <Header /> */}
-            
+
             <SidebarNavigationSimple items={navigation} activeUrl={pathname} />
 
             <main className="px-6 py-6 max-h-screen max-w-[1366px] lg:max-w-9xl mx-auto  pl-[312px]">

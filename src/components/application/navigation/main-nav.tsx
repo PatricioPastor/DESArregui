@@ -2,15 +2,22 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Home01, Package, Moon01, Sun, BarChart03 } from "@untitledui/icons";
+import { Home01, Package, Moon01, Sun, BarChart03, Phone01 } from "@untitledui/icons";
 import { useTheme } from "next-themes";
 import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { cx } from "@/utils/cx";
+import { useMemo } from "react";
+import { isAdmin } from "@/utils/user-roles";
 
-const navigation = [
-  { name: "SOTI", href: "/", icon: Home01, current: false },
+const allNavigation = [
+  { name: "Mesa de entrada", href: "/", icon: Home01, current: false },
+  { name: "SOTI", href: "/soti", icon: Phone01, current: false },
   { name: "Stock", href: "/stock", icon: Package, current: false },
-  { name: "Reportes", href: "/reportes/phones", icon: BarChart03, current: false },
+  { name: "Reportes", href: "/reports/phones", icon: BarChart03, current: false },
+];
+
+const viewerNavigation = [
+  { name: "Reportes", href: "/reports/phones", icon: BarChart03, current: false },
 ];
 
 // export function MainNavigation() {
@@ -108,6 +115,12 @@ export function Header() {
   const {data, isPending} = useSession()
   const pathname = usePathname();
   const router = useRouter()
+
+  // Determine navigation items based on user role
+  const navigation = useMemo(() => {
+    if (!data?.user?.email) return viewerNavigation;
+    return isAdmin(data.user.email) ? allNavigation : viewerNavigation;
+  }, [data?.user?.email]);
 
   const onSignOut = () => {
     signOut({
