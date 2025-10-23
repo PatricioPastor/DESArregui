@@ -112,7 +112,7 @@ export function PhoneTicketsChart({ monthlyData, loading }: PhoneTicketsChartPro
         "Promedio": "#94A3B8", // Gris para la línea de referencia
       },
     },
-    height: "300px",
+    height: "100%",
     theme: "g100" as const,
     timeScale: {
       addSpaceOnEdges: 0, // Elimina padding en los bordes
@@ -152,7 +152,7 @@ export function PhoneTicketsChart({ monthlyData, loading }: PhoneTicketsChartPro
   };
 
   return (
-    <div className="w-full p-4 h-full">
+    <div className="flex h-full w-full flex-col justify-center p-4 sm:p-6">
       <ComboChart
         data={chartData}
         options={chartOptions as any}

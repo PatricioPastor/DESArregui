@@ -17,14 +17,16 @@ interface SyncResponse {
 
 interface SyncTicketsButtonProps {
   onSyncComplete?: (data: SyncResponse) => void;
-  size?: "xs" | "sm" | "md" | "lg" | "xl";
-  color?: "primary" | "secondary" | "destructive" | "ghost";
+  size?:  "sm" | "md" ;
+  color?: "primary" | "secondary" ;
+  className?: string;
 }
 
 export function SyncTicketsButton({
   onSyncComplete,
   size = "sm",
-  color = "secondary"
+  color = "secondary",
+  className
 }: SyncTicketsButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -83,13 +85,14 @@ export function SyncTicketsButton({
 
   return (
     <Button
-      color="secondary"
-      size="sm"
+      color={color}
+      size={size}
       iconLeading={Database02}
       onClick={handleSync}
       isLoading={isLoading}
       isDisabled={isLoading}
       showTextWhileLoading
+      className={className}
     >
       {isLoading ? "Sincronizando" : "Sincronizar"}
     </Button>

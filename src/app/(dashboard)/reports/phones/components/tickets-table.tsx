@@ -149,17 +149,22 @@ export function TicketsTable({
       />
 
       {/* Search Bar */}
-      <div className="flex flex-col gap-4 border-b border-secondary px-4 py-4 md:px-6 md:flex-row md:items-center md:justify-between">
-        <div className="flex gap-3 w-full md:w-auto">
+      <div className="flex flex-col gap-3 border-b border-secondary px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-6">
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
           <Input
             icon={SearchLg}
             aria-label="Buscar tickets"
             placeholder="Buscar por ticket, distribuidora, creador..."
             value={searchQuery}
             onChange={(value) => setSearchQuery(value)}
-            className="w-full md:w-96"
+            className="w-full sm:w-64 lg:w-96"
           />
-          <Button size="md" color="secondary" iconLeading={FilterLines}>
+          <Button
+            size="md"
+            color="secondary"
+            iconLeading={FilterLines}
+            className="w-full justify-center sm:w-auto"
+          >
             Filtros
           </Button>
         </div>
@@ -239,11 +244,11 @@ export function TicketsTable({
           </Table>
 
           <PaginationCardMinimal
-            align="right"
+            align="center"
             page={page}
             total={totalPages}
             onPageChange={setPage}
-            className="px-4 py-3 md:px-5 md:pt-3 md:pb-4"
+            className="px-4 py-3 sm:px-5 sm:pt-3 sm:pb-4"
           />
         </>
       )}

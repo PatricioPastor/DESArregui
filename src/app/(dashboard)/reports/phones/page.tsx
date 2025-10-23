@@ -10,6 +10,9 @@ import { SyncTicketsButton } from "@/components/dashboard/sync-tickets-button";
 import { PhoneTicketsChart } from "./components/phone-tickets-chart";
 import { TicketsTable } from "./components/tickets-table";
 import { usePhonesSummary } from "@/hooks/use-phones-summary";
+import { useSession } from "@/lib/auth-client";
+import { isAdmin } from "@/utils/user-roles";
+import { toast } from "sonner";
 
 
 const getStockStandard = (models:any[]) => {
@@ -50,6 +53,8 @@ export default function TelefonosTicketsDashboard() {
     const [dateRange, setDateRange] = useState<{start?: string; end?: string}>(
         getQuarterDateRange("Q2")
     );
+    const { data: session } = useSession();
+    const isAdminUser = isAdmin(session?.user?.email);
 
     const { data, loading, error, refetch } = usePhonesSummary({
         startDate: dateRange.start,
@@ -165,7 +170,7 @@ export default function TelefonosTicketsDashboard() {
             }
         },
         {
-            label: "Asignaciones",
+            label: "Nuevas Asignaciones",
             icon: Plus,
             value: loading ? "..." : data?.kpis.assignments || 0,
             subtitle: loading ? "" : `${assignmentsPercentage}% del total`,
@@ -273,63 +278,85 @@ export default function TelefonosTicketsDashboard() {
 
     if (error) {
         return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="text-center">
-                    <p className="text-red-500 mb-4">Error: {error}</p>
-                    <Button onClick={refetch}>Reintentar</Button>
+            <div className="flex min-h-[60vh] w-full items-center justify-center px-4">
+                <div className="flex w-full max-w-sm flex-col items-center gap-4 text-center">
+                    <p className="text-sm text-red-500">Error: {error}</p>
+                    <Button onClick={refetch} className="w-full justify-center">
+                        Reintentar
+                    </Button>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6 p-6">
+        <section className="flex flex-col gap-6 px-4 py-6 sm:gap-8 sm:px-6 lg:px-8">
             {/* Header */}
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
+            <header className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex flex-col gap-1">
                     <h1 className="text-2xl font-semibold tracking-tight">Teléfonos</h1>
-                    <p className="text-muted-foreground text-sm">Dashboard con demanda de teléfonos y previsión</p>
+                    <p className="text-sm text-muted-foreground">Dashboard con demanda de teléfonos y previsión</p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <Select
-                        label=""
-                        placeholder="Seleccionar período"
-                        selectedKey={selectedQuarter}
-                        onSelectionChange={(key) => {
-                            const quarter = key as string;
-                            setSelectedQuarter(quarter);
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                    <div className="w-full sm:w-auto">
+                        <Select
+                            label=""
+                            placeholder="Seleccionar período"
+                            selectedKey={selectedQuarter}
+                            onSelectionChange={(key) => {
+                                const quarter = key as string;
+                                setSelectedQuarter(quarter);
 
-                            if (quarter !== "custom") {
-                                const range = getQuarterDateRange(quarter);
-                                setDateRange(range);
-                            }
-                        }}
-                        items={quarterOptions}
-                        className="min-w-40"
-                    >
-                        {(item) => (
-                            <Select.Item id={item.id}>
-                                {item.label}
-                            </Select.Item>
+                                if (quarter !== "custom") {
+                                    const range = getQuarterDateRange(quarter);
+                                    setDateRange(range);
+                                }
+                            }}
+                            items={quarterOptions}
+                            className="w-full min-w-0 sm:w-48 sm:min-w-48 lg:w-56"
+                        >
+                            {(item) => (
+                                <Select.Item id={item.id}>
+                                    {item.label}
+                                </Select.Item>
+                            )}
+                        </Select>
+                    </div>
+
+                    <div className="w-full sm:w-auto">
+                        <DateRangePicker
+                            className="w-full"
+                            isDisabled={selectedQuarter !== "custom"}
+                            onChange={(range) => {
+                                if (range?.start && range?.end) {
+                                    const startDate = `${range.start.year}-${String(range.start.month).padStart(2, "0")}-${String(range.start.day).padStart(2, "0")}`;
+                                    const endDate = `${range.end.year}-${String(range.end.month).padStart(2, "0")}-${String(range.end.day).padStart(2, "0")}`;
+                                    setDateRange({ start: startDate, end: endDate });
+                                }
+                            }}
+                        />
+                    </div>
+
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+                        {isAdminUser && (
+                            <SyncTicketsButton
+                                className="w-full justify-center sm:w-auto"
+                                onSyncComplete={() => refetch()}
+                            />
                         )}
-                    </Select>
-
-                    <DateRangePicker
-                        isDisabled={selectedQuarter !== "custom"}
-                        onChange={(range) => {
-                            if (range?.start && range?.end) {
-                                const startDate = `${range.start.year}-${String(range.start.month).padStart(2, '0')}-${String(range.start.day).padStart(2, '0')}`;
-                                const endDate = `${range.end.year}-${String(range.end.month).padStart(2, '0')}-${String(range.end.day).padStart(2, '0')}`;
-                                setDateRange({ start: startDate, end: endDate });
-                            }
-                        }}
-                    />
-                    {/* <Button color="primary" size="sm">Exportar</Button> */}
-                    <SyncTicketsButton onSyncComplete={() => refetch()} />
-                    <Button color="secondary" isDisabled iconLeading={Stars02} size="sm">AI</Button>
+                        <Button
+                            color="secondary"
+                            iconLeading={Stars02}
+                            size="sm"
+                            className="w-full justify-center sm:w-auto"
+                            onClick={() => toast.info("En desarrollo")}
+                        >
+                            AI
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            </header>
 
             {/* KPIs con Modals */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -340,13 +367,11 @@ export default function TelefonosTicketsDashboard() {
 
             {/* Chart */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <div className="col-span-3 h-80 rounded-lg border border-surface bg-surface-1">
-                    <div className="h-full w-full">
-                        <PhoneTicketsChart
-                            monthlyData={data?.monthly_data}
-                            loading={loading}
-                        />
-                    </div>
+                <div className="col-span-1 h-[260px] rounded-lg border border-surface bg-surface-1 sm:h-[320px] lg:col-span-3">
+                    <PhoneTicketsChart
+                        monthlyData={data?.monthly_data}
+                        loading={loading}
+                    />
                 </div>
             </div>
 
@@ -356,6 +381,6 @@ export default function TelefonosTicketsDashboard() {
                 loading={loading}
                 description={`Período: ${dateRange.start} - ${dateRange.end}`}
             />
-        </div>
+        </section>
     );
 }
