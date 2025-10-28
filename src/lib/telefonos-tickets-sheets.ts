@@ -345,6 +345,13 @@ export function calculateTelefonosTicketsAnalytics(
     byEnterprise,
     byIssueType,
     byLabel,
+    replacement_types: {
+      ROBO: 0,
+      ROTURA: 0,
+      OBSOLETO: 0,
+      PERDIDA: 0,
+      SIN_ESPECIFICAR: 0,
+    },
     timeSeriesData,
     demandProjections,
     stockAnalysis,
