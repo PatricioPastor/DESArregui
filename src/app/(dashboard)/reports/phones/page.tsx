@@ -9,6 +9,7 @@ import { KpiCardWithModal } from "@/components/dashboard/kpi-card-with-modal";
 import { SyncTicketsButton } from "@/components/dashboard/sync-tickets-button";
 import { PhoneTicketsChart } from "./components/phone-tickets-chart";
 import { TicketsTable } from "./components/tickets-table";
+import { ReplacementTypesCard } from "./components/replacement-types-card";
 import { usePhonesSummary } from "@/hooks/use-phones-summary";
 import { useSession } from "@/lib/auth-client";
 import { isAdmin } from "@/utils/user-roles";
@@ -311,6 +312,9 @@ export default function TelefonosTicketsDashboard() {
                                 if (quarter !== "custom") {
                                     const range = getQuarterDateRange(quarter);
                                     setDateRange(range);
+                                } else {
+                                    // Limpiar el rango cuando se selecciona "Personalizado"
+                                    setDateRange({});
                                 }
                             }}
                             items={quarterOptions}
@@ -326,6 +330,7 @@ export default function TelefonosTicketsDashboard() {
 
                     <div className="w-full sm:w-auto">
                         <DateRangePicker
+                            key={selectedQuarter} // Forzar re-render al cambiar de quarter
                             className="w-full"
                             isDisabled={selectedQuarter !== "custom"}
                             onChange={(range) => {
@@ -374,6 +379,13 @@ export default function TelefonosTicketsDashboard() {
                     />
                 </div>
             </div>
+
+            {/* Replacement Types */}
+            <ReplacementTypesCard
+                replacementTypes={data?.replacement_types}
+                loading={loading}
+                isAdmin={isAdminUser}
+            />
 
             {/* Tickets Table */}
             <TicketsTable

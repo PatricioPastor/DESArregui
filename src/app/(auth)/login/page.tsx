@@ -33,6 +33,7 @@ export default function AuthSplitQuote() {
       fetchOptions:{
         onSuccess: () => {
           setLoading(false)
+          router.push('/reports/phones')
         },
         onError: (ctx) => {
           setError(ctx.error.message)

@@ -130,6 +130,7 @@ export interface TelefonosTicketRecord {
   creator: string;
   status: string;
   category_status: string;
+  replacement_type?: string | null;
   is_assignment?: boolean;
   is_replacement?: boolean;
 }
@@ -151,6 +152,13 @@ export interface TelefonosTicketsAnalytics {
   byEnterprise: { [key: string]: number };
   byIssueType: { [key: string]: number };
   byLabel: { [key: string]: number };
+  replacement_types: {
+    ROBO: number;
+    ROTURA: number;
+    OBSOLETO: number;
+    PERDIDA: number;
+    SIN_ESPECIFICAR: number;
+  };
   timeSeriesData: { date: string; count: number }[];
   demandProjections: DemandProjection[];
   stockAnalysis: StockAnalysis[];

@@ -57,16 +57,27 @@ export const NavAccountMenu = ({
 
 
     const onSignOut = async () => {
-        await signOut({
-            fetchOptions: {
-                onSuccess: () => {
-                    router.push('/login');
-                },
-                onError: (error) => {
-                    console.error('Sign out error:', error);
+        try {
+            await signOut({
+                fetchOptions: {
+                    onSuccess: () => {
+                        router.push('/login');
+                        router.refresh();
+                    },
+                    onError: (error) => {
+                        console.error('Sign out error:', error);
+                        // Redirigir incluso si hay error
+                        router.push('/login');
+                        router.refresh();
+                    }
                 }
-            }
-        });
+            });
+        } catch (error) {
+            console.error('Sign out error:', error);
+            // Asegurar redirección en caso de error
+            router.push('/login');
+            router.refresh();
+        }
     };   
 
 

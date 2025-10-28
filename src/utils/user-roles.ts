@@ -9,8 +9,7 @@ export type UserRole = 'admin' | 'viewer';
  * Admin users - Full access to all features
  */
 const ADMIN_EMAILS = [
-  'patricio.pastor@desasa.com.ar',
-  
+  'patricio.passtor@desasa.com.ar',
 ];
 
 /**

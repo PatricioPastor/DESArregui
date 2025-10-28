@@ -15,11 +15,17 @@ interface SyncResponse {
   updated: number;
   deactivated: number;
   errors: number;
+  invalid_labels: number;
   error?: string;
   details?: {
     errors: Array<{
       ticket: Partial<TelefonosTicketRecord>;
       error: string;
+    }>;
+    invalid_labels: Array<{
+      key: string;
+      label: string;
+      reason: string;
     }>;
   };
 }
@@ -65,6 +71,49 @@ const isReplacementTicket = (label: string) => {
   return label.includes('REC-CEL');
 };
 
+// Valid replacement types (strict validation)
+const VALID_REPLACEMENT_TYPES = ['ROBO', 'ROTURA', 'OBSOLETO', 'PERDIDA'] as const;
+const VALID_LABEL_TAGS = [...VALID_REPLACEMENT_TYPES, 'ASG-CEL', 'REC-CEL'] as const;
+
+// Extract replacement type from label with strict validation
+const extractReplacementType = (label: string): {
+  replacementType: string | null;
+  hasInvalidLabels: boolean;
+  invalidTags: string[];
+} => {
+  if (!label || label.trim() === '') {
+    return { replacementType: null, hasInvalidLabels: false, invalidTags: [] };
+  }
+
+  // If it's an assignment, no replacement type
+  if (label.includes('ASG-CEL')) {
+    return { replacementType: null, hasInvalidLabels: false, invalidTags: [] };
+  }
+
+  // If it's not a replacement, no replacement type
+  if (!label.includes('REC-CEL')) {
+    return { replacementType: null, hasInvalidLabels: false, invalidTags: [] };
+  }
+
+  // Split by semicolon and trim
+  const tags = label.split(';').map(t => t.trim()).filter(t => t !== '');
+
+  // Check for invalid tags
+  const invalidTags = tags.filter(tag => !VALID_LABEL_TAGS.includes(tag as any));
+  const hasInvalidLabels = invalidTags.length > 0;
+
+  // Find replacement type (any tag that is NOT REC-CEL and IS in valid types)
+  const replacementType = tags.find(tag =>
+    tag !== 'REC-CEL' && VALID_REPLACEMENT_TYPES.includes(tag as any)
+  );
+
+  return {
+    replacementType: replacementType || 'SIN_ESPECIFICAR',
+    hasInvalidLabels,
+    invalidTags
+  };
+};
+
 // Parse date strings coming from the spreadsheet into Date objects
 const parseSheetDate = (dateString: string) => {
   if (!dateString || typeof dateString !== 'string') {
@@ -100,6 +149,7 @@ const mapTicketRecordToDB = (record: TelefonosTicketRecord) => {
   const { isPending, pendingCount } = extractPendingInfo(record.title);
   const isAssignment = isAssignmentTicket(record.label);
   const isReplacementLabel = isReplacementTicket(record.label);
+  const { replacementType, hasInvalidLabels, invalidTags } = extractReplacementType(record.label);
 
   // Business rule: A ticket is EITHER assignment OR replacement, never both
   const finalIsAssignment = isAssignment;
@@ -118,18 +168,24 @@ const mapTicketRecordToDB = (record: TelefonosTicketRecord) => {
     category_status: record.category_status || 'Unknown',
     replacement_count: replacementCount,
     pending_count: pendingCount,
+    replacement_type: replacementType,
     is_replacement: finalIsReplacement,
     is_assignment: finalIsAssignment,
     is_active: true,
     last_sync: new Date(),
+    hasInvalidLabels,
+    invalidTags,
   };
 };
 
 const upsertTicket = async (record: TelefonosTicketRecord) => {
-  const dbData = mapTicketRecordToDB(record);
+  const mappedData = mapTicketRecordToDB(record);
+
+  // Extract validation fields (not stored in DB)
+  const { hasInvalidLabels, invalidTags, ...dbData } = mappedData;
 
   // Use upsert to handle both insert and update cases
-  return await prisma.ticket.upsert({
+  const result = await prisma.ticket.upsert({
     where: {
       key: record.key,
     },
@@ -139,6 +195,8 @@ const upsertTicket = async (record: TelefonosTicketRecord) => {
     },
     create: dbData,
   });
+
+  return { result, hasInvalidLabels, invalidTags };
 };
 
 export async function POST(request: NextRequest) {
@@ -187,7 +245,9 @@ export async function POST(request: NextRequest) {
       updated: 0,
       deactivated: 0,
       errors: 0,
+      invalid_labels: 0,
       errorDetails: [] as Array<{ ticket: Partial<TelefonosTicketRecord>; error: string }>,
+      invalidLabelDetails: [] as Array<{ key: string; label: string; reason: string }>,
     };
 
     // Get all current keys from incoming data
@@ -229,7 +289,17 @@ export async function POST(request: NextRequest) {
             where: { key: ticket.key },
           });
 
-          await upsertTicket(ticket);
+          const { hasInvalidLabels, invalidTags } = await upsertTicket(ticket);
+
+          // Track invalid labels
+          if (hasInvalidLabels && invalidTags.length > 0) {
+            results.invalid_labels++;
+            results.invalidLabelDetails.push({
+              key: ticket.key,
+              label: ticket.label,
+              reason: `Invalid tags found: ${invalidTags.join(', ')}. Valid tags are: ${VALID_LABEL_TAGS.join(', ')}`,
+            });
+          }
 
           results.processed++;
           if (existingTicket) {
@@ -264,12 +334,14 @@ export async function POST(request: NextRequest) {
       updated: results.updated,
       deactivated: results.deactivated,
       errors: results.errors,
+      invalid_labels: results.invalid_labels,
     };
 
-    // Include error details if there were errors
-    if (results.errors > 0) {
+    // Include error details if there were errors or invalid labels
+    if (results.errors > 0 || results.invalid_labels > 0) {
       response.details = {
         errors: results.errorDetails,
+        invalid_labels: results.invalidLabelDetails,
       };
     }
 
@@ -290,6 +362,7 @@ export async function POST(request: NextRequest) {
         updated: 0,
         deactivated: 0,
         errors: 1,
+        invalid_labels: 0,
         error: `Failed to sync tickets: ${errorMessage}`,
       },
       { status: 500 }

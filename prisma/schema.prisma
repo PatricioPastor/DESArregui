@@ -253,6 +253,7 @@ model ticket {
   category_status   String
   replacement_count Int?
   pending_count     Int?
+  replacement_type  String?
   is_replacement    Boolean  @default(false)
   is_assignment     Boolean  @default(false)
   is_active         Boolean  @default(true)
@@ -265,6 +266,7 @@ model ticket {
   @@index([status])
   @@index([creator])
   @@index([is_active])
+  @@index([replacement_type])
   @@map("ticket")
   @@schema("phones")
 }

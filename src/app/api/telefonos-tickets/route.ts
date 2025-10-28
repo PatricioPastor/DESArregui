@@ -75,8 +75,24 @@ const calculateAnalytics = (tickets: any[], filters: TelefonosTicketsFilters) =>
     return acc;
   }, [] as Array<{ date: string; count: number }>);
 
-  // Simple demand projections based on replacement tickets
+  // Calculate replacement types counts (only for replacement tickets)
   const replacementTickets = filteredTickets.filter(ticket => ticket.is_replacement);
+  const replacementTypes = replacementTickets.reduce((acc, ticket) => {
+    const type = ticket.replacement_type || 'SIN_ESPECIFICAR';
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Initialize all valid types with 0 if not present
+  const allReplacementTypes = {
+    ROBO: replacementTypes.ROBO || 0,
+    ROTURA: replacementTypes.ROTURA || 0,
+    OBSOLETO: replacementTypes.OBSOLETO || 0,
+    PERDIDA: replacementTypes.PERDIDA || 0,
+    SIN_ESPECIFICAR: replacementTypes.SIN_ESPECIFICAR || 0,
+  };
+
+  // Simple demand projections based on replacement tickets
   const demandProjections = Object.keys(byEnterprise).map(enterprise => ({
     enterprise,
     currentDemand: replacementTickets.filter(t => t.enterprise === enterprise).length,
@@ -91,6 +107,7 @@ const calculateAnalytics = (tickets: any[], filters: TelefonosTicketsFilters) =>
     byEnterprise,
     byIssueType,
     byLabel,
+    replacement_types: allReplacementTypes,
     timeSeriesData,
     demandProjections,
     stockAnalysis: [],

@@ -9,6 +9,13 @@ export interface PhonesSummaryData {
     replacements: number;
     replacement_rate: number;
   };
+  replacement_types: {
+    ROBO: number;
+    ROTURA: number;
+    OBSOLETO: number;
+    PERDIDA: number;
+    SIN_ESPECIFICAR: number;
+  };
   stock: {
     available: number;
     models: Array<{
@@ -26,6 +33,7 @@ export interface PhonesSummaryData {
     month_number: number;
     tickets: number;
     demand: number;
+    is_in_range: boolean;
     is_projected: boolean;
     projected_demand: number | null;
   }>;

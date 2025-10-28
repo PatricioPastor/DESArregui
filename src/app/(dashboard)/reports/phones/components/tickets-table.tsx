@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { SearchLg, FilterLines } from "@untitledui/icons";
+import { useState, useMemo, useEffect } from "react";
+import { SearchLg, FilterLines, X } from "@untitledui/icons";
 import type { SortDescriptor } from "react-aria-components";
 import { PaginationCardMinimal } from "@/components/application/pagination/pagination";
 import { Table, TableCard } from "@/components/application/table/table";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
+
+import { Select } from "@/components/base/select/select";
 import { Badge } from "@/components/base/badges/badges";
 
 interface Ticket {
@@ -22,6 +24,7 @@ interface Ticket {
   status: string;
   category_status: string;
   replacement_count: number;
+  replacement_type?: string | null;
   is_replacement: boolean;
   is_assignment: boolean;
   is_active: boolean;
@@ -34,6 +37,21 @@ interface TicketsTableProps {
   description?: string;
 }
 
+const TICKET_TYPE_OPTIONS = [
+  { id: "all", label: "Todos los tipos", value: "all" },
+  { id: "assignment", label: "Asignaciones", value: "assignment" },
+  { id: "replacement", label: "Recambios", value: "replacement" },
+];
+
+const REPLACEMENT_TYPE_OPTIONS = [
+  { id: "all", label: "Todos los recambios", value: "all" },
+  { id: "ROBO", label: "Robo", value: "ROBO" },
+  { id: "ROTURA", label: "Rotura", value: "ROTURA" },
+  { id: "OBSOLETO", label: "Obsoleto", value: "OBSOLETO" },
+  { id: "PERDIDA", label: "Pérdida", value: "PERDIDA" },
+  { id: "SIN_ESPECIFICAR", label: "Sin especificar", value: "SIN_ESPECIFICAR" },
+];
+
 export function TicketsTable({
   tickets = [],
   loading = false,
@@ -41,6 +59,9 @@ export function TicketsTable({
   description
 }: TicketsTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [ticketTypeFilter, setTicketTypeFilter] = useState("all");
+  const [replacementTypeFilter, setReplacementTypeFilter] = useState("all");
+  const [showFilters, setShowFilters] = useState(false);
   const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
     column: "created",
     direction: "descending",
@@ -48,18 +69,40 @@ export function TicketsTable({
   const [page, setPage] = useState(1);
   const [pageSize] = useState(25);
 
-  // Filter tickets by search query
-  const filteredTickets = useMemo(() => {
-    if (!searchQuery.trim()) return tickets;
+  // Reset page when search or filters change
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, ticketTypeFilter, replacementTypeFilter]);
 
-    const query = searchQuery.toLowerCase();
-    return tickets.filter(ticket =>
-      ticket.key?.toLowerCase().includes(query) ||
-      ticket.enterprise?.toLowerCase().includes(query) ||
-      ticket.creator?.toLowerCase().includes(query) ||
-      ticket.title?.toLowerCase().includes(query)
-    );
-  }, [tickets, searchQuery]);
+  // Filter tickets by search query and filters
+  const filteredTickets = useMemo(() => {
+    let result = tickets;
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(ticket =>
+        ticket.key?.toLowerCase().includes(query) ||
+        ticket.enterprise?.toLowerCase().includes(query) ||
+        ticket.creator?.toLowerCase().includes(query) ||
+        ticket.title?.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply ticket type filter
+    if (ticketTypeFilter !== "all") {
+      result = result.filter(ticket =>
+        ticketTypeFilter === "assignment" ? ticket.is_assignment : ticket.is_replacement
+      );
+    }
+
+    // Apply replacement type filter (only when viewing replacements)
+    if (ticketTypeFilter === "replacement" && replacementTypeFilter !== "all") {
+      result = result.filter(ticket => ticket.replacement_type === replacementTypeFilter);
+    }
+
+    return result;
+  }, [tickets, searchQuery, ticketTypeFilter, replacementTypeFilter]);
 
   // Sort tickets
   const sortedTickets = useMemo(() => {
@@ -132,12 +175,18 @@ export function TicketsTable({
     return (
       <Badge
         size="sm"
-        
         color={isAssignment ? 'blue-light' : 'warning'}
       >
         {isAssignment ? 'Asignación' : 'Recambio'}
       </Badge>
     );
+  };
+
+  const hasActiveFilters = ticketTypeFilter !== "all" || replacementTypeFilter !== "all";
+
+  const clearFilters = () => {
+    setTicketTypeFilter("all");
+    setReplacementTypeFilter("all");
   };
 
   return (
@@ -148,8 +197,8 @@ export function TicketsTable({
         description={description}
       />
 
-      {/* Search Bar */}
-      <div className="flex flex-col gap-3 border-b border-secondary px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-6">
+      {/* Search Bar and Filters */}
+      <div className="flex flex-col gap-3 border-b border-secondary px-4 py-4 sm:px-6">
         <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
           <Input
             icon={SearchLg}
@@ -157,29 +206,106 @@ export function TicketsTable({
             placeholder="Buscar por ticket, distribuidora, creador..."
             value={searchQuery}
             onChange={(value) => setSearchQuery(value)}
-            className="w-full sm:w-64 lg:w-96"
+            className="w-[calc(100%-36px)] sm:flex-1"
           />
           <Button
             size="md"
             color="secondary"
             iconLeading={FilterLines}
-            className="w-full justify-center sm:w-auto"
+            className="w-full flex flex-row gap-0.5 items-center justify-center whitespace-nowrap sm:w-auto"
+            onClick={() => setShowFilters(!showFilters)}
           >
             Filtros
+            {hasActiveFilters && (
+              <Badge size="sm" color="brand" className="ml-2">
+                {(ticketTypeFilter !== "all" ? 1 : 0) + (replacementTypeFilter !== "all" ? 1 : 0)}
+              </Badge>
+            )}
           </Button>
         </div>
+
+        {/* Filters Panel */}
+        {showFilters && (
+          <div className="flex flex-col gap-3 rounded-lg border border-surface bg-surface-1 p-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium">Filtros</h4>
+              {hasActiveFilters && (
+                <Button
+                  size="sm"
+                  color="secondary"
+                  iconLeading={X}
+                  onClick={clearFilters}
+                >
+                  Limpiar
+                </Button>
+              )}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {/* Ticket Type Filter */}
+              <Select
+                label="Tipo de ticket"
+                selectedKey={ticketTypeFilter}
+                onSelectionChange={(key) => {
+                  setTicketTypeFilter(key as string);
+                  // Reset replacement type filter when changing ticket type
+                  if (key !== "replacement") {
+                    setReplacementTypeFilter("all");
+                  }
+                }}
+                items={TICKET_TYPE_OPTIONS}
+              >
+                {(item) => (
+                  <Select.Item id={item.id}>
+                    {item.label}
+                  </Select.Item>
+                )}
+              </Select>
+
+              {/* Replacement Type Filter (conditional) */}
+              {ticketTypeFilter === "replacement" && (
+                <Select
+                  label="Tipo de recambio"
+                  selectedKey={replacementTypeFilter}
+                  onSelectionChange={(key) => setReplacementTypeFilter(key as string)}
+                  items={REPLACEMENT_TYPE_OPTIONS}
+                >
+                  {(item) => (
+                    <Select.Item id={item.id}>
+                      {item.label}
+                    </Select.Item>
+                  )}
+                </Select>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
-      {loading ? (
+      {(loading && tickets.length === 0) ? (
         <div className="flex items-center justify-center p-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           <span className="ml-3">Cargando tickets...</span>
         </div>
       ) : sortedTickets.length === 0 ? (
-        <div className="flex items-center justify-center p-12">
+        <div className="flex flex-col items-center justify-center p-12 gap-2">
           <p className="text-muted-foreground">
-            {searchQuery ? 'No se encontraron tickets con esos criterios' : 'No hay tickets para mostrar'}
+            {searchQuery || hasActiveFilters
+              ? 'No se encontraron tickets con esos criterios'
+              : 'No hay tickets para mostrar'}
           </p>
+          {(searchQuery || hasActiveFilters) && (
+            <Button
+              size="sm"
+              color="secondary"
+              onClick={() => {
+                setSearchQuery("");
+                clearFilters();
+              }}
+            >
+              Limpiar búsqueda y filtros
+            </Button>
+          )}
         </div>
       ) : (
         <>
@@ -191,7 +317,6 @@ export function TicketsTable({
           >
             <Table.Header>
               <Table.Head id="title" label="Título" isRowHeader allowsSorting className="w-60"  />
-    
               <Table.Head id="enterprise" label="Distribuidora" allowsSorting className="w-40" />
               <Table.Head id="creator" label="Creador" allowsSorting className="w-36 hidden lg:table-cell" />
               <Table.Head id="status" label="Estado" allowsSorting className="w-32" />
@@ -204,12 +329,12 @@ export function TicketsTable({
               {(ticket) => (
                 <Table.Row id={`ticket-${ticket.id}`}>
                   <Table.Cell>
-                  <div className="flex flex-col">
+                    <div className="flex flex-col">
                       <span className="text-sm font-medium line-clamp-1">
                         {ticket.title || "-"}
                       </span>
-                      {ticket.label && (
-                         <span className="font-mono text-primary text-xs font-medium">
+                      {ticket.key && (
+                        <span className="font-mono text-primary text-xs font-medium">
                           {ticket.key}
                         </span>
                       )}

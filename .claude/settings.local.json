@@ -23,7 +23,11 @@
       "Bash(cat:*)",
       "Bash(del test_output.json)",
       "Bash(del \"c:\\Users\\patri\\Dev\\main\\DESA\\DESArregui\\src\\middleware.ts\")",
-      "Bash(copy:*)"
+      "Bash(copy:*)",
+      "Bash(timeout 10 bash:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": []
   }

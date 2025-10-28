@@ -9,6 +9,7 @@ interface PhoneTicketsChartProps {
     month_number: number;
     tickets: number;
     demand: number;
+    is_in_range: boolean;
     is_projected: boolean;
     projected_demand: number | null;
   }>;
@@ -16,10 +17,14 @@ interface PhoneTicketsChartProps {
 }
 
 export function PhoneTicketsChart({ monthlyData, loading }: PhoneTicketsChartProps) {
-  if (loading) {
+  // Solo mostrar loading si no hay datos previos
+  if (loading && (!monthlyData || monthlyData.length === 0)) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground">
-        <p>Cargando datos...</p>
+        <div className="flex items-center gap-2">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+          <p>Cargando datos...</p>
+        </div>
       </div>
     );
   }
@@ -44,18 +49,27 @@ export function PhoneTicketsChart({ monthlyData, loading }: PhoneTicketsChartPro
     ? Math.round(realDemands.reduce((sum, item) => sum + item.demand, 0) / realDemands.length)
     : 0;
 
-  // Format data for CarbonCharts - ComboChart (Barras + Línea)
+  // Format data for CarbonCharts - ComboChart con dos grupos de barras
   const chartData: any[] = [];
 
   monthlyData.forEach((item) => {
     const monthLabel = monthNames[item.month_number - 1];
 
-    // Barra: Demanda de teléfonos solicitados
-    chartData.push({
-      group: "Teléfonos Entregados",
-      key: monthLabel,
-      value: item.demand || 0,
-    });
+    if (item.is_in_range) {
+      // Barras del rango analizado (color crema/beige claro)
+      chartData.push({
+        group: "Rango Analizado",
+        key: monthLabel,
+        value: item.demand || 0,
+      });
+    } else {
+      // Barras fuera del rango (color gris)
+      chartData.push({
+        group: "Otros Meses",
+        key: monthLabel,
+        value: item.demand || 0,
+      });
+    }
 
     // Línea: Promedio como referencia
     chartData.push({
@@ -82,7 +96,7 @@ export function PhoneTicketsChart({ monthlyData, loading }: PhoneTicketsChartPro
     comboChartTypes: [
       {
         type: "simple-bar",
-        correspondingDatasets: ["Teléfonos Entregados"],
+        correspondingDatasets: ["Rango Analizado", "Otros Meses"],
       },
       {
         type: "line",
@@ -108,8 +122,9 @@ export function PhoneTicketsChart({ monthlyData, loading }: PhoneTicketsChartPro
     },
     color: {
       scale: {
-        "Teléfonos Entregados": "#FDB022",
-        "Promedio": "#94A3B8", // Gris para la línea de referencia
+        "Rango Analizado": "#F5DEB3",    // Beige/Wheat claro para rango analizado
+        "Otros Meses": "#E2E8F0",         // Gris claro para otros meses
+        "Promedio": "#94A3B8",            // Gris para la línea de referencia
       },
     },
     height: "100%",
@@ -125,21 +140,49 @@ export function PhoneTicketsChart({ monthlyData, loading }: PhoneTicketsChartPro
 
         if (!item) return '';
 
+        const isInRange = item.is_in_range;
+        const rangeIndicator = isInRange
+          ? '<span style="display: inline-block; width: 8px; height: 8px; background: #F5DEB3; border-radius: 2px; margin-right: 4px;"></span>En rango analizado'
+          : '<span style="display: inline-block; width: 8px; height: 8px; background: #E2E8F0; border-radius: 2px; margin-right: 4px;"></span>Fuera de rango';
+
         if (item.demand > 0) {
           return `
-            <div style="padding: 8px; background: transparent; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <strong>${monthLabel} 2025</strong><br/>
-              <span style="color: #FDB022;">Teléfonos Entregados: ${item.demand}</span><br/>
-              <span style="color: #94A3B8;">Promedio: ${averageDemand}</span><br/>
-              <span style="color: #888;">Tickets: ${item.tickets}</span>
+            <div style="padding: 12px; background: transparent; border-radius: 6px; box-shadow: 0 2px 12px rgba(0,0,0,0.15); min-width: 200px;">
+              <div style="margin-bottom: 8px;">
+                <strong style="font-size: 14px;">${monthLabel} 2025</strong>
+              </div>
+              <div style="font-size: 12px; color: #f1f1f1; margin-bottom: 8px;">
+                ${rangeIndicator}
+              </div>
+              <div style="margin-bottom: 4px;">
+                <span style="color: ${isInRange ? '#D4A574' : '#94A3B8'};">■</span>
+                <strong> Teléfonos:</strong> ${item.demand}
+              </div>
+              <div style="margin-bottom: 4px;">
+                <span style="color: #94A3B8;">―</span>
+                <strong> Promedio:</strong> ${averageDemand}
+              </div>
+              <div style="color: #888; font-size: 11px;">
+                Tickets: ${item.tickets}
+              </div>
             </div>
           `;
         } else {
           return `
-            <div style="padding: 8px; background: transparent; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <strong>${monthLabel} 2025</strong><br/>
-              <span style="color: #94A3B8;">Promedio: ${averageDemand}</span><br/>
-              <em style="font-size: 11px; color: #666;">Sin datos para este mes</em>
+            <div style="padding: 12px; background: transparent; border-radius: 6px; box-shadow: 0 2px 12px rgba(0,0,0,0.15); min-width: 200px;">
+              <div style="margin-bottom: 8px;">
+                <strong style="font-size: 14px;">${monthLabel} 2025</strong>
+              </div>
+              <div style="font-size: 12px; color: #f1f1f1; margin-bottom: 8px;">
+                ${rangeIndicator}
+              </div>
+              <div style="margin-bottom: 4px;">
+                <span style="color: #94A3B8;">―</span>
+                <strong> Promedio:</strong> ${averageDemand}
+              </div>
+              <div style="color: #999; font-size: 11px; font-style: italic;">
+                Sin datos para este mes
+              </div>
             </div>
           `;
         }
