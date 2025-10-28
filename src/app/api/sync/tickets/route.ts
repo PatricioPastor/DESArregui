@@ -230,6 +230,7 @@ export async function POST(request: NextRequest) {
           created: 0,
           updated: 0,
           deactivated: 0,
+          invalid_labels:0,
           errors: 1,
           error: 'No se encontraron tickets en la hoja TELEFONOS_TICKETS',
         },
