@@ -5,14 +5,17 @@ import { getDeviceDetailByImei } from "@/lib/stock-detail";
 import { DeviceDetailClient } from "./device-detail.client";
 import { INVENTORY_STATUS_COLOR } from "@/lib/inventory-utils";
 
-interface DeviceDetailPageProps {
-  params: {
-    imei: string;
-  };
-}
+type DeviceDetailPageParams = {
+  imei: string;
+};
 
-export default async function DeviceDetailPage({ params }: DeviceDetailPageProps) {
-  const imei = params?.imei?.trim();
+export default async function DeviceDetailPage({
+  params,
+}: {
+  params: Promise<DeviceDetailPageParams>;
+}) {
+  const { imei: rawImei } = await params;
+  const imei = rawImei?.trim();
 
   if (!imei) {
     notFound();
