@@ -334,9 +334,14 @@ export function TicketsTable({
                         {ticket.title || "-"}
                       </span>
                       {ticket.key && (
-                        <span className="font-mono text-primary text-xs font-medium">
+                        <a
+                          href={`https://desasa.atlassian.net/browse/${ticket.key}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-primary text-xs font-medium underline"
+                        >
                           {ticket.key}
-                        </span>
+                        </a>
                       )}
                     </div>
                   </Table.Cell>
