@@ -3,14 +3,13 @@ import prisma from "@/lib/prisma";
 import { getDeviceDetailByImei } from "@/lib/stock-detail";
 import type { device_status } from "@/generated/prisma/index";
 
-interface RouteParams {
-  params: {
-    imei: string;
-  };
-}
+type RouteParams = {
+  imei: string;
+};
 
-export async function GET(_request: Request, { params }: RouteParams) {
-  const imei = params?.imei?.trim();
+export async function GET(_request: Request, context: { params: Promise<RouteParams> }) {
+  const { imei: rawImei } = await context.params;
+  const imei = rawImei?.trim();
 
   if (!imei) {
     return NextResponse.json(
@@ -81,8 +80,9 @@ const normalizeStatusValue = (value: unknown): device_status | null => {
   return DEVICE_STATUS_VALUES.find((status) => status === normalized) || null;
 };
 
-export async function PUT(request: Request, { params }: RouteParams) {
-  const imei = params?.imei?.trim();
+export async function PUT(request: Request, context: { params: Promise<RouteParams> }) {
+  const { imei: rawImei } = await context.params;
+  const imei = rawImei?.trim();
 
   if (!imei) {
     return NextResponse.json(

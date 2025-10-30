@@ -83,8 +83,8 @@ const formatModelDisplay = (model: NonNullable<{ brand: string; model: string; s
   return parts.join(" ").replace(/\s+/g, " ").trim();
 };
 
-const buildInventoryRecord = (device: Awaited<ReturnType<typeof prisma.device.findUnique<{ include: typeof DEVICE_INCLUDE }>>>, sotiDevice: any): InventoryRecord => {
-  const inventoryStatus = DEVICE_STATUS_TO_INVENTORY[device!.status] || "NEW";
+const buildInventoryRecord = (device: any, sotiDevice: any): InventoryRecord => {
+  const inventoryStatus = DEVICE_STATUS_TO_INVENTORY[device!.status as "NEW"] || "NEW";
   const assignments = device?.assignments || [];
   const lastAssignment = assignments[0];
   const modelDisplay = formatModelDisplay(device!.model);
@@ -111,7 +111,7 @@ const buildInventoryRecord = (device: Awaited<ReturnType<typeof prisma.device.fi
     ticket: device!.ticket_id || "",
     is_assigned:
       Boolean(device!.assigned_to) ||
-      assignments.some((a) => a.type === "ASSIGN" && (!a.status || a.status === "active")),
+      assignments.some((a:any) => a.type === "ASSIGN" && (!a.status || a.status === "active")),
     created_at: device!.created_at.toISOString(),
     updated_at: device!.updated_at.toISOString(),
     last_assignment_at: lastAssignment?.at.toISOString() || null,
@@ -128,7 +128,7 @@ const buildInventoryRecord = (device: Awaited<ReturnType<typeof prisma.device.fi
       ...device,
       created_at: device!.created_at.toISOString(),
       updated_at: device!.updated_at.toISOString(),
-      assignments: assignments.map((a) => ({
+      assignments: assignments.map((a:any) => ({
         ...a,
         at: a.at.toISOString(),
       })),
