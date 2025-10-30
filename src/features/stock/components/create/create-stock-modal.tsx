@@ -124,9 +124,19 @@ export function CreateStockModal({ open, onOpenChange, onSuccess }: CreateStockM
 
   const canSubmit = () => {
     if (activeStep === 'individual') {
-      return individualData.imei.trim() && individualData.modelo.trim() && individualData.distribuidora.trim();
+      return (
+        individualData.imei.trim() &&
+        individualData.modelo.trim() &&
+        individualData.distribuidora.trim() &&
+        individualData.status?.trim()
+      );
     } else {
-      return bulkData.modelo.trim() && bulkData.distribuidora.trim() && bulkData.imeis.length > 0;
+      return (
+        bulkData.modelo.trim() &&
+        bulkData.distribuidora.trim() &&
+        (bulkData.status?.trim() || 'NEW') &&
+        bulkData.imeis.length > 0
+      );
     }
   };
 

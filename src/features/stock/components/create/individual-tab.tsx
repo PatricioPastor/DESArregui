@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { Input } from "@/components/base/input/input";
 import { Select } from "@/components/base/select/select";
 import { useCreateStockStore } from "@/store/create-stock.store";
+import { DEVICE_STATUS_OPTIONS } from "@/constants/device-status";
 import { InfoCircle } from "@untitledui/icons";
 import { useShallow } from "zustand/react/shallow";
 
@@ -42,6 +43,21 @@ export function IndividualTab() {
           onChange={(val) => setIndividualData({ imei: val })}
           isRequired
         />
+
+        <Select
+          isRequired
+          label="Estado"
+          placeholder="Seleccione el estado del dispositivo"
+          selectedKey={individualData.status}
+          onSelectionChange={(val) => setIndividualData({ status: val as string })}
+          items={DEVICE_STATUS_OPTIONS as any}
+        >
+          {(item) => (
+            <Select.Item id={item.id}>
+              {item.label}
+            </Select.Item>
+          )}
+        </Select>
 
         <Select
           isRequired
@@ -97,10 +113,18 @@ export function IndividualTab() {
 
         <Input
           id="ticket"
-          label="Ticket (opcional)"
+          label="Ticket de asignacion (opcional)"
           placeholder="Número de ticket sin DESA-"
           value={individualData.ticket}
           onChange={(val) => setIndividualData({ ticket: val })}
+        />
+
+        <Input
+          id="purchase_id"
+          label="Ticket de compra (opcional)"
+          placeholder="Identificador de compra"
+          value={individualData.purchase_id}
+          onChange={(val) => setIndividualData({ purchase_id: val })}
         />
       </div>
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
-import { ArrowCircleRight, Box, CheckCircle, Database01, Plus, SearchLg, Send01, UploadCloud02, Eye } from "@untitledui/icons";
+import { ArrowCircleRight, Box, CheckCircle, Database01, FilterLines, Plus, SearchLg, Send01, UploadCloud02, Eye, X, Edit01 } from "@untitledui/icons";
 import type { SortDescriptor } from "react-aria-components";
 import { PaginationCardMinimal } from "@/components/application/pagination/pagination";
 import { Table, TableCard, TableRowActionsDropdown } from "@/components/application/table/table";
@@ -12,13 +12,15 @@ import { Input } from "@/components/base/input/input";
 import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
 import { Tabs } from "@/components/application/tabs/tabs";
 import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icons";
+import { Select } from "@/components/base/select/select";
 import { useFilteredStockData } from "@/hooks/use-stock-data";
 import { CreateStockModal } from "@/features/stock/components/create/create-stock-modal";
 import { AssignDeviceModal } from "@/features/stock/components/assign";
 import { ViewAssignmentModal } from "@/features/stock/components/view-assignment";
+import { EditStockModal } from "@/features/stock/components/edit/edit-stock-modal";
 import type { InventoryRecord } from "@/lib/types";
-import { cx } from "@/utils/cx";
 import { toast } from "sonner";
+import { DEVICE_STATUS_OPTIONS, DEVICE_STATUS_LABELS } from "@/constants/device-status";
 
 type StockView = "overview" | "pending_soti" | "in_transit" | "completed";
 
@@ -31,6 +33,14 @@ interface DeviceStateBadge {
   color: StatusBadgeColor;
   description?: string;
 }
+
+const JIRA_BASE_URL = 'https://desasa.atlassian.net/browse/';
+const STATUS_LABELS: Record<string, string> = { ...DEVICE_STATUS_LABELS };
+
+const normalizeDistributorName = (fullPath: string) =>
+  getDistribuidoraName(fullPath).trim().toLowerCase();
+
+const isDepot = (fullPath: string) => normalizeDistributorName(fullPath) === "deposito";
 
 const getLatestAssignment = (record: InventoryRecord) => {
   const assignments = (record.raw?.assignments as any[]) ?? [];
@@ -50,7 +60,9 @@ const getDeviceState = (record: InventoryRecord): DeviceStateBadge => {
     return { label: "Cerrada", color: "success" };
   }
 
-  if (record.is_assigned) {
+  const treatedAsAssigned = record.is_assigned && !isDepot(record.distribuidora);
+
+  if (treatedAsAssigned) {
     return { label: "Asignado", color: "brand" };
   }
 
@@ -58,16 +70,93 @@ const getDeviceState = (record: InventoryRecord): DeviceStateBadge => {
     return { label: "Pendiente SOTI", color: "warning" };
   }
 
+  if (!treatedAsAssigned && (record.status === "NEW" || record.status === "ASSIGNED")) {
+    return { label: "Disponible", color: "success" };
+  }
+
   if (record.status === "LOST") {
     return { label: "Perdido", color: "error" };
   }
 
-  if (record.status === "NEW") {
-    return { label: "Disponible", color: "success" };
-  }
-
   return { label: record.status_label || "Sin estado", color: "gray" };
 };
+
+interface TicketInfo {
+  display: string;
+  url: string | null;
+}
+
+const getDistribuidoraName = (fullPath: string) => {
+  if (!fullPath) return "-";
+
+  if (fullPath.startsWith("\\\\")) {
+    const withoutPrefix = fullPath.substring(2);
+    const nextSlashIndex = withoutPrefix.indexOf("\\");
+
+    if (nextSlashIndex !== -1) {
+      return withoutPrefix.substring(0, nextSlashIndex);
+    }
+    return withoutPrefix;
+  }
+
+  return fullPath;
+};
+
+const getDistribuidoraBadge = (distribuidora: string) => {
+  if (!distribuidora) return <Badge color="gray" size="sm">-</Badge>;
+
+  return (
+    <BadgeWithDot type="modern" color="brand" size="lg">
+      {getDistribuidoraName(distribuidora)}
+    </BadgeWithDot>
+  );
+};
+
+const getTicketInfo = (ticket: string | null | undefined): TicketInfo | null => {
+  if (!ticket) return null;
+
+  const trimmed = ticket.trim();
+  if (!trimmed) return null;
+
+  // Case: full URL already provided
+  if (/^https?:\/\//i.test(trimmed)) {
+    const match = trimmed.match(/DESA-\d+/i);
+    const display = match ? match[0].toUpperCase() : trimmed.replace(/^https?:\/\//i, '');
+    return { display, url: trimmed };
+  }
+
+  // Case: includes ticket key like DESA-12345
+  const keyMatch = trimmed.match(/DESA-\d+/i);
+  if (keyMatch) {
+    const ticketKey = keyMatch[0].toUpperCase();
+    return {
+      display: ticketKey,
+      url: `${JIRA_BASE_URL}${ticketKey}`,
+    };
+  }
+
+  // Case: numeric only (e.g., 12345)
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits) {
+    const ticketKey = `DESA-${digits}`;
+    return {
+      display: ticketKey,
+      url: `${JIRA_BASE_URL}${ticketKey}`,
+    };
+  }
+
+  // Unknown format, just show string without link
+  return {
+    display: trimmed,
+    url: null,
+  };
+};
+
+const isRecordAssigned = (record: InventoryRecord) =>
+  record.is_assigned && !isDepot(record.distribuidora);
+
+const isRecordAvailable = (record: InventoryRecord) =>
+  !record.is_assigned || isDepot(record.distribuidora);
 
 export function StockTable() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -83,6 +172,12 @@ export function StockTable() {
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isViewAssignmentModalOpen, setIsViewAssignmentModalOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<InventoryRecord | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [deviceToEdit, setDeviceToEdit] = useState<InventoryRecord | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [stateFilter, setStateFilter] = useState<string>("all");
+  const [distributorFilter, setDistributorFilter] = useState<string>("all");
+  const [statusDbFilter, setStatusDbFilter] = useState<string>("all");
 
   const { data, isLoading, error, lastUpdated, refresh } = useFilteredStockData(searchQuery);
 
@@ -94,13 +189,13 @@ export function StockTable() {
     let availableCount = 0;
 
     data.forEach((record) => {
-      if (record.is_assigned) {
+      if (isRecordAssigned(record)) {
         assignedCount += 1;
       } else {
         availableCount += 1;
       }
 
-      if (record.soti_info?.is_in_soti && !record.is_assigned) {
+      if (record.soti_info?.is_in_soti && !isRecordAssigned(record)) {
         pendingSotiRecords.push(record);
       }
 
@@ -148,9 +243,82 @@ export function StockTable() {
     }
   }, [activeView, data, pendingSotiRecords, inTransitRecords, completedRecords]);
 
+const stateFilterOptions = useMemo(
+    () => [
+      { id: "all", label: "Todos los estados" },
+      { id: "available", label: "Disponibles" },
+      { id: "assigned", label: "Asignados" },
+    ],
+    []
+  );
+
+  const statusDbFilterOptions = useMemo(
+    () => [
+      { id: "all", label: "Todos los estados DB" },
+      ...DEVICE_STATUS_OPTIONS.map((option) => ({ ...option })),
+    ],
+    []
+  );
+
+  const distributorOptions = useMemo(() => {
+    const names = new Set<string>();
+
+    data.forEach((record) => {
+      const name = getDistribuidoraName(record.distribuidora);
+      if (name && name !== "-") {
+        names.add(name);
+      }
+    });
+
+    const sortedNames = Array.from(names).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+
+    return [
+      { id: "all", label: "Todas las distribuidoras" },
+      ...sortedNames.map((name) => ({ id: name, label: name })),
+    ];
+  }, [data]);
+
+  const hasActiveFilters =
+    stateFilter !== "all" || distributorFilter !== "all" || statusDbFilter !== "all";
+
+  useEffect(() => {
+    setPage(1);
+  }, [stateFilter, distributorFilter, statusDbFilter, activeView]);
+
+  const filteredWithFilters = useMemo(() => {
+    return filteredData.filter((record) => {
+      if (stateFilter === "available" && !isRecordAvailable(record)) {
+        return false;
+      }
+
+      if (stateFilter === "assigned" && !isRecordAssigned(record)) {
+        return false;
+      }
+
+      if (statusDbFilter !== "all" && record.status !== statusDbFilter) {
+        return false;
+      }
+
+      if (distributorFilter !== "all") {
+        const distributorName = getDistribuidoraName(record.distribuidora);
+        if ((distributorName || "-") !== distributorFilter) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [filteredData, stateFilter, distributorFilter, statusDbFilter]);
+
+  const clearFilters = () => {
+    setStateFilter("all");
+    setDistributorFilter("all");
+    setStatusDbFilter("all");
+  };
+
   // Sort data
   const sortedItems = useMemo(() => {
-    const items = [...filteredData];
+    const items = [...filteredWithFilters];
 
     return items.sort((a, b) => {
       const first = a[sortDescriptor.column as keyof InventoryRecord] as string;
@@ -164,7 +332,7 @@ export function StockTable() {
       const cmp = first.localeCompare(second, 'es', { numeric: true });
       return sortDescriptor.direction === "descending" ? -cmp : cmp;
     });
-  }, [filteredData, sortDescriptor]);
+  }, [filteredWithFilters, sortDescriptor]);
 
   // Paginate data
   const paginatedData = useMemo(() => {
@@ -189,7 +357,7 @@ export function StockTable() {
         { id: "assigned", label: "Asignados activos", value: "...", icon: ArrowCircleRight, subtitle: "" },
         { id: "available", label: "Disponibles", value: "...", icon: Box, subtitle: "" },
         { id: "pending", label: "Pendientes SOTI", value: "...", icon: UploadCloud02, subtitle: "" },
-        { id: "in_transit", label: "En envío", value: "...", icon: Send01, subtitle: "" },
+        { id: "in_transit", label: "En envio", value: "...", icon: Send01, subtitle: "" },
         { id: "completed", label: "Asignaciones cerradas", value: "...", icon: CheckCircle, subtitle: "" },
       ];
     }
@@ -207,25 +375,25 @@ export function StockTable() {
         label: "Asignados activos",
         value: formatValue(assignedCount),
         icon: ArrowCircleRight,
-        subtitle: "Con asignación vigente",
+        subtitle: "Con asignacion vigente",
       },
       {
         id: "available",
         label: "Disponibles",
         value: formatValue(availableCount),
         icon: Box,
-        subtitle: "Sin asignación activa",
+        subtitle: "Sin asignacion activa",
       },
       {
         id: "pending",
         label: "Pendientes SOTI",
         value: formatValue(pendingSotiCount),
         icon: UploadCloud02,
-        subtitle: "En SOTI sin asignación",
+        subtitle: "En SOTI sin asignacion",
       },
       {
         id: "in_transit",
-        label: "En envío",
+        label: "En envio",
         value: formatValue(inTransitCount),
         icon: Send01,
         subtitle: "Vale generado y activo",
@@ -253,7 +421,7 @@ export function StockTable() {
     () => [
       { id: "overview" as const, label: "Resumen", badge: totalDevices },
       { id: "pending_soti" as const, label: "Pendientes SOTI", badge: pendingSotiCount },
-      { id: "in_transit" as const, label: "En envío", badge: inTransitCount },
+      { id: "in_transit" as const, label: "En envio", badge: inTransitCount },
       { id: "completed" as const, label: "Cerradas", badge: completedCount },
     ],
     [totalDevices, pendingSotiCount, inTransitCount, completedCount],
@@ -279,39 +447,11 @@ export function StockTable() {
   };
 
   const openTicket = (ticket: string) => {
-    if (!ticket) return;
-    const url = `https://desasa.atlassian.net/browse/DESA-${ticket}`;
-    window.open(url, "_blank");
-  };
-
-  const getDistribuidoraName = (fullPath: string) => {
-    if (!fullPath) return "-";
-    
-    // Extract everything after the first backslash and before the second
-    if (fullPath.startsWith("\\\\")) {
-      // Remove the first two backslashes
-      const withoutPrefix = fullPath.substring(2);
-      const nextSlashIndex = withoutPrefix.indexOf("\\");
-      
-      if (nextSlashIndex !== -1) {
-        return withoutPrefix.substring(0, nextSlashIndex);
-      }
-      return withoutPrefix;
+    const info = getTicketInfo(ticket);
+    if (info?.url) {
+      window.open(info.url, "_blank");
     }
-    
-    return fullPath; // Return full path if doesn't match expected format
   };
-
-  const getDistribuidoraBadge = (distribuidora: string) => {
-    if (!distribuidora) return <Badge color="gray" size="sm">-</Badge>;
-    
-    return (
-      <BadgeWithDot type="modern" color="brand" size="lg">
-          {getDistribuidoraName(distribuidora)}
-      </BadgeWithDot>
-    );
-  };
-
 
   const handleSync = async () => {
     try {
@@ -330,7 +470,7 @@ export function StockTable() {
         throw new Error(errorMessage);
       }
       if (!result || typeof result !== 'object') {
-        throw new Error('Respuesta inv?lida del servidor');
+        throw new Error('Respuesta invalida del servidor');
       }
       const {
         success,
@@ -371,14 +511,14 @@ export function StockTable() {
               return `${identifier}: ${error}`;
             })
             .join(' | ');
-          sampleDescription = ` | Ejemplos: ${formattedSamples}${truncated ? ' (m?s errores omitidos)' : ''}`;
+          sampleDescription = ` | Ejemplos: ${formattedSamples}${truncated ? ' (mas errores omitidos)' : ''}`;
         }
-        toast.error('Sincronizaci?n finalizada con errores', {
+        toast.error('Sincronizacion finalizada con errores', {
           description: `${baseSummary} | Errores: ${errors}${sampleDescription}`,
           duration: 6000,
         });
       } else {
-        toast.success('Sincronizaci?n completada', {
+        toast.success('Sincronizacion completada', {
           description: baseSummary,
           duration: 5000,
         });
@@ -433,7 +573,7 @@ export function StockTable() {
         <TableCard.Header
           title="Inventario de dispositivos"
           badge={`${sortedItems.length} ${sortedItems.length === 1 ? 'dispositivo' : 'dispositivos'}`}
-          description={lastUpdated ? `Última actualización: ${formatDate(lastUpdated)}` : undefined}
+          description={lastUpdated ? `Ultima actualizacion: ${formatDate(lastUpdated)}` : undefined}
           contentTrailing={
             <div className="absolute top-5 right-4 md:right-6 flex items-center justify-end gap-3">
               <ButtonUtility
@@ -474,15 +614,90 @@ export function StockTable() {
           </div>
 
           <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <Input
-              icon={SearchLg}
-              aria-label="Buscar dispositivos"
-              placeholder="Buscar por IMEI, nombre asignado, ticket, modelo o distribuidora..."
-              value={searchQuery}
-              onChange={(val) => setSearchQuery(val)}
-              className="w-full sm:w-80"
-            />
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
+              <Input
+                icon={SearchLg}
+                aria-label="Buscar dispositivos"
+                placeholder="Buscar por IMEI, nombre asignado, ticket, modelo o distribuidora..."
+                value={searchQuery}
+                onChange={(val) => setSearchQuery(val)}
+                className="w-full sm:w-80"
+              />
+              <Button
+                size="md"
+                color="secondary"
+                iconLeading={FilterLines}
+                className="w-full sm:w-auto whitespace-nowrap"
+                onClick={() => setShowFilters((current) => !current)}
+              >
+                Filtros
+                {hasActiveFilters && (
+                  <Badge size="sm" color="brand" className="ml-2">
+                    {(stateFilter !== "all" ? 1 : 0) +
+                      (distributorFilter !== "all" ? 1 : 0) +
+                      (statusDbFilter !== "all" ? 1 : 0)}
+                  </Badge>
+                )}
+              </Button>
+            </div>
+
+            {hasActiveFilters && (
+              <Button
+                size="sm"
+                color="secondary"
+                iconLeading={X}
+                onClick={clearFilters}
+                className="self-start sm:self-auto"
+              >
+                Limpiar filtros
+              </Button>
+            )}
           </div>
+
+          {showFilters && (
+            <div className="flex flex-col gap-3 rounded-lg border border-surface bg-surface-1 p-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <Select
+                  label="Estado"
+                  selectedKey={stateFilter}
+                  onSelectionChange={(key) => setStateFilter(key as string)}
+                  items={stateFilterOptions as any}
+                >
+                  {(item) => (
+                    <Select.Item id={item.id}>
+                      {item.label}
+                    </Select.Item>
+                  )}
+                </Select>
+
+                <Select
+                  label="Distribuidora"
+                  selectedKey={distributorFilter}
+                  onSelectionChange={(key) => setDistributorFilter(key as string)}
+                  items={distributorOptions}
+                >
+                  {(item) => (
+                    <Select.Item id={item.id}>
+                      {item.label}
+                    </Select.Item>
+                  )}
+                </Select>
+
+                <Select
+                  label="Estado (DB)"
+                  selectedKey={statusDbFilter}
+                  onSelectionChange={(key) => setStatusDbFilter(key as string)}
+                  items={statusDbFilterOptions as any}
+                >
+                  {(item) => (
+                    <Select.Item id={item.id}>
+                      {item.label}
+                    </Select.Item>
+                  )}
+                </Select>
+              </div>
+            </div>
+          )}
         </div>
 
         {isLoading ? (
@@ -492,35 +707,46 @@ export function StockTable() {
           </div>
         ) : (
           <>
-            <Table 
-              aria-label="Inventario de teléfonos" 
+            <Table className="min-w-full"
+              aria-label="Inventario de telefonos" 
 
               
               sortDescriptor={sortDescriptor} 
               onSortChange={setSortDescriptor}
             >
               <Table.Header>
-                <Table.Head id="modelo" label="Dispositivo" isRowHeader allowsSorting className="w-52" />
-                <Table.Head id="estado" label="Estado" className="w-40" />
-                <Table.Head id="asignado_a" label="Asignacion" allowsSorting />
-                <Table.Head id="distribuidora" label="Logistica" allowsSorting />
-                <Table.Head id="ticket" label="Tickets" allowsSorting className="hidden xl:table-cell" />
-                <Table.Head id="actions" className="w-20" />
+                <Table.Head id="modelo" label="Dispositivo" isRowHeader allowsSorting className="w-56 min-w-[14rem]" />
+                <Table.Head id="estado" label="Estado" className="w-48 min-w-[12rem]" />
+                <Table.Head id="asignado_a" label="Asignacion" allowsSorting className="w-60 min-w-[15rem]" />
+                <Table.Head id="distribuidora" label="Logistica" allowsSorting className="w-48 min-w-[12rem]" />
+                <Table.Head id="ticket" label="Tickets" allowsSorting className="hidden w-[160px] min-w-[10rem] xl:table-cell" />
+                <Table.Head id="actions" className="w-28 min-w-[7rem]" />
               </Table.Header>
 
               <Table.Body items={paginatedData}>
                 {(item) => {
                   const latestAssignment = getLatestAssignment(item);
                   const deviceState = getDeviceState(item);
-                  const assigneeName = latestAssignment?.assignee_name || item.asignado_a || null;
-                  const assigneePhone = latestAssignment?.assignee_phone || null;
-                  const deliveryLocation = latestAssignment?.delivery_location || null;
-                  const assignmentDate = latestAssignment?.at ? formatDate(latestAssignment.at) : null;
+                  const assignmentCode = isRecordAssigned(item)
+                    ? latestAssignment?.assigned_to ||
+                      latestAssignment?.id ||
+                      item.asignado_a ||
+                      null
+                    : null;
+                  const assigneeName =
+                    assignmentCode && latestAssignment?.assignee_name
+                      ? latestAssignment.assignee_name
+                      : isRecordAssigned(item)
+                        ? item.asignado_a || null
+                        : null;
+                  const assigneePhone = isRecordAssigned(item) ? latestAssignment?.assignee_phone || null : null;
+                  const deliveryLocation = isRecordAssigned(item) ? latestAssignment?.delivery_location || null : null;
+                  const assignmentDate = isRecordAssigned(item) && latestAssignment?.at ? formatDate(latestAssignment.at) : null;
                   const shippingVoucher = latestAssignment?.shipping_voucher_id || null;
                   const expectsReturn = Boolean(latestAssignment?.expects_return);
 
                   return (
-                    <Table.Row id={item.imei}>
+                    <Table.Row id={item.imei} className="align-top">
                       <Table.Cell>
                         <div className="flex flex-col gap-1">
                           <Link
@@ -546,11 +772,18 @@ export function StockTable() {
                       </Table.Cell>
                       <Table.Cell>
                         <div className="flex flex-col gap-1">
-                          {assigneeName ? (
-                            <span className="font-medium text-primary">{assigneeName}</span>
+                          {assignmentCode ? (
+                            <Badge size="sm" color="brand" className="w-fit uppercase tracking-tight">
+                              {assignmentCode}
+                            </Badge>
                           ) : (
-                            <span className="text-xs italic text-tertiary">Sin asignar</span>
+                            <Badge size="sm" color="gray" className="w-fit">
+                              Sin asignacion
+                            </Badge>
                           )}
+                          {assigneeName && assigneeName !== assignmentCode ? (
+                            <span className="text-sm font-medium text-primary">{assigneeName}</span>
+                          ) : null}
                           {assigneePhone ? (
                             <span className="text-xs text-tertiary">{assigneePhone}</span>
                           ) : null}
@@ -579,28 +812,51 @@ export function StockTable() {
                           ) : null}
                         </div>
                       </Table.Cell>
-                      <Table.Cell className="hidden xl:table-cell">
-                        {item.ticket ? (
-                          <div className="cursor-pointer" onClick={() => openTicket(item.ticket)}>
-                            <BadgeWithDot type="modern" color="blue-light" size="lg">
-                              {`DESA-${item.ticket}`}
-                            </BadgeWithDot>
-                          </div>
-                        ) : (
-                          <BadgeWithDot type="modern" color="gray" size="lg">
-                            Sin asignar
-                          </BadgeWithDot>
-                        )}
+                      <Table.Cell className="hidden w-[140px] xl:table-cell">
+                        {(() => {
+                          const ticketInfo = getTicketInfo(item.ticket);
+
+                          if (!ticketInfo) {
+                            return (
+                              <BadgeWithDot type="modern" color="gray" size="lg">
+                                Sin asignar
+                              </BadgeWithDot>
+                            );
+                          }
+
+                          const clickable = Boolean(ticketInfo.url);
+
+                          return (
+                            <div
+                              className={clickable ? "cursor-pointer" : "cursor-default"}
+                              onClick={clickable ? () => openTicket(item.ticket || "") : undefined}
+                            >
+                              <BadgeWithDot type="modern" color="blue-light" size="lg">
+                                {ticketInfo.display}
+                              </BadgeWithDot>
+                            </div>
+                          );
+                        })()}
                       </Table.Cell>
                       <Table.Cell className="px-3">
                         <div className="flex items-center justify-end gap-1.5">
+                          <ButtonUtility
+                            size="xs"
+                            color="secondary"
+                            tooltip="Editar dispositivo"
+                            icon={Edit01}
+                            onClick={() => {
+                              setDeviceToEdit(item);
+                              setIsEditModalOpen(true);
+                            }}
+                          />
+
                           <Button size="sm" color="secondary" href={`/stock/${item.imei}`}>
                             Ver mas
                           </Button>
 
                           {item.soti_info?.is_in_soti &&
-                           item.status === 'NEW' &&
-                           !item.is_assigned && (
+                           !isRecordAssigned(item) && (
                             <ButtonUtility
                               size="xs"
                               color="secondary"
@@ -613,7 +869,7 @@ export function StockTable() {
                             />
                           )}
 
-                          {item.is_assigned && (
+                          {isRecordAssigned(item) && (
                             <ButtonUtility
                               size="xs"
                               color="secondary"
@@ -672,6 +928,18 @@ export function StockTable() {
           imei: selectedDevice?.imei,
           model: selectedDevice?.modelo,
         }}
+      />
+
+      <EditStockModal
+        open={isEditModalOpen}
+        onOpenChange={(open) => {
+          setIsEditModalOpen(open);
+          if (!open) {
+            setDeviceToEdit(null);
+          }
+        }}
+        device={deviceToEdit}
+        onSuccess={refresh}
       />
     </div>
   );

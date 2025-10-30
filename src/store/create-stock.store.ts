@@ -16,6 +16,8 @@ interface IndividualStockData {
   distribuidora: string;
   asignado_a?: string;
   ticket?: string;
+  status: string;
+  purchase_id?: string;
 }
 
 interface BulkStockData {
@@ -24,6 +26,8 @@ interface BulkStockData {
   imeis: string[];
   asignado_a?: string;
   ticket?: string;
+  status: string;
+  purchase_id?: string;
 }
 
 interface CreateStockState {
@@ -61,7 +65,9 @@ const initialIndividualData: IndividualStockData = {
   modelo: '',
   distribuidora: '',
   asignado_a: '',
-  ticket: ''
+  ticket: '',
+  status: 'NEW',
+  purchase_id: '',
 };
 
 const initialBulkData: BulkStockData = {
@@ -69,7 +75,9 @@ const initialBulkData: BulkStockData = {
   distribuidora: '',
   imeis: [],
   asignado_a: '',
-  ticket: ''
+  ticket: '',
+  status: 'NEW',
+  purchase_id: '',
 };
 
 export const useCreateStockStore = create<CreateStockState>()(
@@ -140,11 +148,21 @@ export const useCreateStockStore = create<CreateStockState>()(
               };
             }
 
+            const deviceData = {
+              imei: state.individualData.imei.trim(),
+              modelo: state.individualData.modelo,
+              distribuidora: state.individualData.distribuidora,
+              asignado_a: state.individualData.asignado_a?.trim() || undefined,
+              ticket: state.individualData.ticket?.trim() || undefined,
+              status: state.individualData.status || 'NEW',
+              purchase_id: state.individualData.purchase_id?.trim() || undefined,
+            };
+
             // Submit individual stock
             const response = await fetch('/api/stock', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(state.individualData)
+              body: JSON.stringify(deviceData),
             });
 
             const result = await response.json();
@@ -194,8 +212,10 @@ export const useCreateStockStore = create<CreateStockState>()(
                   imei: imei.trim(),
                   modelo: state.bulkData.modelo,
                   distribuidora: state.bulkData.distribuidora,
-                  asignado_a: state.bulkData.asignado_a,
-                  ticket: state.bulkData.ticket
+                  asignado_a: state.bulkData.asignado_a?.trim() || undefined,
+                  ticket: state.bulkData.ticket?.trim() || undefined,
+                  status: state.bulkData.status || 'NEW',
+                  purchase_id: state.bulkData.purchase_id?.trim() || undefined,
                 };
 
                 const response = await fetch('/api/stock', {
@@ -211,7 +231,7 @@ export const useCreateStockStore = create<CreateStockState>()(
                   errors.push(`IMEI ${imei}: ${result.error || 'Error desconocido'}`);
                 }
               } catch (error) {
-                errors.push(`IMEI ${imei}: Error de conexión`);
+                errors.push(`IMEI ${imei}: Error de conexion`);
               }
             }
 
