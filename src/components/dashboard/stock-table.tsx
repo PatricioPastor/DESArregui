@@ -1,15 +1,17 @@
-"use client";
+﻿"use client";
 
-import { useState, useMemo } from "react";
-import { Edit01, FilterLines, RefreshCw01, SearchLg, Trash01, Plus, Database01, Send01, Eye } from "@untitledui/icons";
-import type { Key, SortDescriptor } from "react-aria-components";
+import Link from "next/link";
+import { useState, useMemo, useEffect } from "react";
+import { ArrowCircleRight, Box, CheckCircle, Database01, Plus, SearchLg, Send01, UploadCloud02, Eye } from "@untitledui/icons";
+import type { SortDescriptor } from "react-aria-components";
 import { PaginationCardMinimal } from "@/components/application/pagination/pagination";
 import { Table, TableCard, TableRowActionsDropdown } from "@/components/application/table/table";
-import { ButtonGroup, ButtonGroupItem } from "@/components/base/button-group/button-group";
 import { Button } from "@/components/base/buttons/button";
 import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { Input } from "@/components/base/input/input";
 import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
+import { Tabs } from "@/components/application/tabs/tabs";
+import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icons";
 import { useFilteredStockData } from "@/hooks/use-stock-data";
 import { CreateStockModal } from "@/features/stock/components/create/create-stock-modal";
 import { AssignDeviceModal } from "@/features/stock/components/assign";
@@ -18,7 +20,54 @@ import type { InventoryRecord } from "@/lib/types";
 import { cx } from "@/utils/cx";
 import { toast } from "sonner";
 
-type FilterType = "all" | "disponibles" | "asignados";
+type StockView = "overview" | "pending_soti" | "in_transit" | "completed";
+
+const COMPLETED_ASSIGNMENT_STATUSES = new Set(["completed", "closed", "finalized", "returned"]);
+
+type StatusBadgeColor = "brand" | "success" | "warning" | "gray" | "blue-light" | "error";
+
+interface DeviceStateBadge {
+  label: string;
+  color: StatusBadgeColor;
+  description?: string;
+}
+
+const getLatestAssignment = (record: InventoryRecord) => {
+  const assignments = (record.raw?.assignments as any[]) ?? [];
+  return assignments[0] ?? null;
+};
+
+const getDeviceState = (record: InventoryRecord): DeviceStateBadge => {
+  const latestAssignment = getLatestAssignment(record);
+  const normalizedAssignmentStatus =
+    typeof latestAssignment?.status === "string" ? latestAssignment.status.toLowerCase() : null;
+
+  if (latestAssignment?.shipping_voucher_id && (!normalizedAssignmentStatus || normalizedAssignmentStatus === "active")) {
+    return { label: "En envio", color: "blue-light", description: latestAssignment.shipping_voucher_id };
+  }
+
+  if (normalizedAssignmentStatus && COMPLETED_ASSIGNMENT_STATUSES.has(normalizedAssignmentStatus)) {
+    return { label: "Cerrada", color: "success" };
+  }
+
+  if (record.is_assigned) {
+    return { label: "Asignado", color: "brand" };
+  }
+
+  if (record.soti_info?.is_in_soti) {
+    return { label: "Pendiente SOTI", color: "warning" };
+  }
+
+  if (record.status === "LOST") {
+    return { label: "Perdido", color: "error" };
+  }
+
+  if (record.status === "NEW") {
+    return { label: "Disponible", color: "success" };
+  }
+
+  return { label: record.status_label || "Sin estado", color: "gray" };
+};
 
 export function StockTable() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -26,7 +75,7 @@ export function StockTable() {
     column: "modelo",
     direction: "ascending",
   });
-  const [selectedFilter, setSelectedFilter] = useState<Set<Key>>(new Set(["all"]));
+  const [activeView, setActiveView] = useState<StockView>("overview");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -35,33 +84,75 @@ export function StockTable() {
   const [isViewAssignmentModalOpen, setIsViewAssignmentModalOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<InventoryRecord | null>(null);
 
-  const { data, isLoading, error, lastUpdated, totalRecords, refresh } = useFilteredStockData(searchQuery);
+  const { data, isLoading, error, lastUpdated, refresh } = useFilteredStockData(searchQuery);
 
-  // Filter data based on selected filter
+  const categorizedData = useMemo(() => {
+    const pendingSotiRecords: InventoryRecord[] = [];
+    const inTransitRecords: InventoryRecord[] = [];
+    const completedRecords: InventoryRecord[] = [];
+    let assignedCount = 0;
+    let availableCount = 0;
+
+    data.forEach((record) => {
+      if (record.is_assigned) {
+        assignedCount += 1;
+      } else {
+        availableCount += 1;
+      }
+
+      if (record.soti_info?.is_in_soti && !record.is_assigned) {
+        pendingSotiRecords.push(record);
+      }
+
+      const lastAssignment = record.raw?.assignments?.[0];
+      if (lastAssignment) {
+        const normalizedStatus =
+          typeof lastAssignment.status === "string" ? lastAssignment.status.toLowerCase() : null;
+        const hasVoucher = Boolean(lastAssignment.shipping_voucher_id);
+
+        if (hasVoucher && (!normalizedStatus || normalizedStatus === "active")) {
+          inTransitRecords.push(record);
+        } else if (normalizedStatus && COMPLETED_ASSIGNMENT_STATUSES.has(normalizedStatus)) {
+          completedRecords.push(record);
+        }
+      }
+    });
+
+    return {
+      pendingSotiRecords,
+      inTransitRecords,
+      completedRecords,
+      assignedCount,
+      availableCount,
+    };
+  }, [data]);
+
+  const {
+    pendingSotiRecords,
+    inTransitRecords,
+    completedRecords,
+    assignedCount,
+    availableCount,
+  } = categorizedData;
+
   const filteredData = useMemo(() => {
-    let filtered = data;
-
-    switch (selectedFilter.values().next().value) {
-      case "disponibles":
-        filtered = data.filter(record => 
-          !record.asignado_a || record.asignado_a.trim() === ""
-        );
-        break;
-      case "asignados":
-        filtered = data.filter(record => 
-          record.asignado_a && record.asignado_a.trim() !== ""
-        );
-        break;
+    switch (activeView) {
+      case "pending_soti":
+        return pendingSotiRecords;
+      case "in_transit":
+        return inTransitRecords;
+      case "completed":
+        return completedRecords;
       default:
-        filtered = data;
+        return data;
     }
-
-    return filtered;
-  }, [data, selectedFilter]);
+  }, [activeView, data, pendingSotiRecords, inTransitRecords, completedRecords]);
 
   // Sort data
   const sortedItems = useMemo(() => {
-    return filteredData.sort((a, b) => {
+    const items = [...filteredData];
+
+    return items.sort((a, b) => {
       const first = a[sortDescriptor.column as keyof InventoryRecord] as string;
       const second = b[sortDescriptor.column as keyof InventoryRecord] as string;
 
@@ -83,6 +174,95 @@ export function StockTable() {
 
   const totalPages = Math.ceil(sortedItems.length / pageSize);
 
+  const numberFormatter = useMemo(() => new Intl.NumberFormat("es-AR"), []);
+  const totalDevices = data.length;
+  const pendingSotiCount = pendingSotiRecords.length;
+  const inTransitCount = inTransitRecords.length;
+  const completedCount = completedRecords.length;
+
+  const metrics = useMemo(() => {
+    const formatValue = (value: number) => numberFormatter.format(value);
+
+    if (isLoading) {
+      return [
+        { id: "total", label: "Inventario total", value: "...", icon: Database01, subtitle: "" },
+        { id: "assigned", label: "Asignados activos", value: "...", icon: ArrowCircleRight, subtitle: "" },
+        { id: "available", label: "Disponibles", value: "...", icon: Box, subtitle: "" },
+        { id: "pending", label: "Pendientes SOTI", value: "...", icon: UploadCloud02, subtitle: "" },
+        { id: "in_transit", label: "En envío", value: "...", icon: Send01, subtitle: "" },
+        { id: "completed", label: "Asignaciones cerradas", value: "...", icon: CheckCircle, subtitle: "" },
+      ];
+    }
+
+    return [
+      {
+        id: "total",
+        label: "Inventario total",
+        value: formatValue(totalDevices),
+        icon: Database01,
+        subtitle: `${formatValue(assignedCount)} asignados`,
+      },
+      {
+        id: "assigned",
+        label: "Asignados activos",
+        value: formatValue(assignedCount),
+        icon: ArrowCircleRight,
+        subtitle: "Con asignación vigente",
+      },
+      {
+        id: "available",
+        label: "Disponibles",
+        value: formatValue(availableCount),
+        icon: Box,
+        subtitle: "Sin asignación activa",
+      },
+      {
+        id: "pending",
+        label: "Pendientes SOTI",
+        value: formatValue(pendingSotiCount),
+        icon: UploadCloud02,
+        subtitle: "En SOTI sin asignación",
+      },
+      {
+        id: "in_transit",
+        label: "En envío",
+        value: formatValue(inTransitCount),
+        icon: Send01,
+        subtitle: "Vale generado y activo",
+      },
+      {
+        id: "completed",
+        label: "Asignaciones cerradas",
+        value: formatValue(completedCount),
+        icon: CheckCircle,
+        subtitle: "Proceso completado",
+      },
+    ];
+  }, [
+    isLoading,
+    numberFormatter,
+    totalDevices,
+    assignedCount,
+    availableCount,
+    pendingSotiCount,
+    inTransitCount,
+    completedCount,
+  ]);
+
+  const tabItems = useMemo(
+    () => [
+      { id: "overview" as const, label: "Resumen", badge: totalDevices },
+      { id: "pending_soti" as const, label: "Pendientes SOTI", badge: pendingSotiCount },
+      { id: "in_transit" as const, label: "En envío", badge: inTransitCount },
+      { id: "completed" as const, label: "Cerradas", badge: completedCount },
+    ],
+    [totalDevices, pendingSotiCount, inTransitCount, completedCount],
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeView, searchQuery]);
+
   const formatDate = (dateString: string) => {
     if (!dateString) return "-";
     try {
@@ -102,14 +282,6 @@ export function StockTable() {
     if (!ticket) return;
     const url = `https://desasa.atlassian.net/browse/DESA-${ticket}`;
     window.open(url, "_blank");
-  };
-
-  const getStatusBadge = (asignado: string) => {
-    if (!asignado || asignado.trim() === "") {
-      return <BadgeWithDot size="sm" color="success" type="modern">Disponible</BadgeWithDot>;
-    }
-    
-    return <BadgeWithDot size="sm" color="gray" type="modern">Asignado</BadgeWithDot>;
   };
 
   const getDistribuidoraName = (fullPath: string) => {
@@ -144,36 +316,74 @@ export function StockTable() {
   const handleSync = async () => {
     try {
       setIsSyncing(true);
-
-      // Show loading toast
       const loadingToast = toast.loading('Sincronizando con Google Sheets...');
-
-      const response = await fetch('/api/stock/sync', {
+      const response = await fetch('/api/sync/stock', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
       });
-
-      // Dismiss loading toast
+      const result = await response.json().catch(() => null);
       toast.dismiss(loadingToast);
-
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error al sincronizar');
+        const errorMessage =
+          result && typeof result === 'object' && 'error' in result
+            ? (result.error as string)
+            : 'Error al sincronizar';
+        throw new Error(errorMessage);
       }
-
-      const result = await response.json();
-
-      // Show success toast with detailed stats
-      toast.success(`Sincronización completada`, {
-        description: `Creados: ${result.stats.created} • Actualizados: ${result.stats.updated} • Modelos: ${result.stats.createdModels} • Distribuidoras: ${result.stats.createdDistributors} • Errores: ${result.stats.errors}`,
-        duration: 5000
-      });
-
-      // Refresh the data after successful sync
+      if (!result || typeof result !== 'object') {
+        throw new Error('Respuesta inv?lida del servidor');
+      }
+      const {
+        success,
+        processed,
+        created,
+        updated,
+        createdModels,
+        createdDistributors,
+        errors,
+        details,
+      } = result as {
+        success: boolean;
+        processed: number;
+        created: number;
+        updated: number;
+        createdModels: number;
+        createdDistributors: number;
+        errors: number;
+        details?: {
+          totalErrors: number;
+          truncated: boolean;
+          sampledErrors: Array<{
+            device: { imei?: string; modelo?: string };
+            error: string;
+          }>;
+        };
+      };
+      const baseSummary = `Procesados: ${processed} | Creados: ${created} | Actualizados: ${updated} | Modelos: ${createdModels} | Distribuidoras: ${createdDistributors}`;
+      if (!success || errors > 0) {
+        const sampledErrors = details?.sampledErrors ?? [];
+        const truncated = details?.truncated ?? false;
+        let sampleDescription = '';
+        if (sampledErrors.length > 0) {
+          const formattedSamples = sampledErrors
+            .slice(0, 3)
+            .map(({ device, error }) => {
+              const identifier = device.imei || device.modelo || 'Equipo sin IMEI';
+              return `${identifier}: ${error}`;
+            })
+            .join(' | ');
+          sampleDescription = ` | Ejemplos: ${formattedSamples}${truncated ? ' (m?s errores omitidos)' : ''}`;
+        }
+        toast.error('Sincronizaci?n finalizada con errores', {
+          description: `${baseSummary} | Errores: ${errors}${sampleDescription}`,
+          duration: 6000,
+        });
+      } else {
+        toast.success('Sincronizaci?n completada', {
+          description: baseSummary,
+          duration: 5000,
+        });
+      }
       await refresh();
-
     } catch (error) {
       console.error('Error syncing stock:', error);
       toast.error(error instanceof Error ? error.message : 'Error al sincronizar con la base de datos');
@@ -181,6 +391,8 @@ export function StockTable() {
       setIsSyncing(false);
     }
   };
+
+
 
   if (error) {
     return (
@@ -197,11 +409,29 @@ export function StockTable() {
 
   return (
     <div className="space-y-6 max-h-screen ">
-      
+      <section className="space-y-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {metrics.map((metric) => (
+            <div
+              key={metric.id}
+              className="flex flex-col gap-4 rounded-lg border border-surface bg-surface-1 p-4 shadow-xs"
+            >
+              <div className="flex items-center gap-3">
+                <FeaturedIcon size="md" color="brand" theme="modern-neue" icon={metric.icon} />
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-secondary">{metric.label}</span>
+                  <span className="text-2xl font-semibold text-primary">{metric.value}</span>
+                </div>
+              </div>
+              {metric.subtitle ? <p className="text-xs text-tertiary">{metric.subtitle}</p> : null}
+            </div>
+          ))}
+        </div>
+      </section>
 
       <TableCard.Root>
         <TableCard.Header
-          title="Inventario de Stock"
+          title="Inventario de dispositivos"
           badge={`${sortedItems.length} ${sortedItems.length === 1 ? 'dispositivo' : 'dispositivos'}`}
           description={lastUpdated ? `Última actualización: ${formatDate(lastUpdated)}` : undefined}
           contentTrailing={
@@ -215,7 +445,7 @@ export function StockTable() {
               />
                 
               
-              {/* <Button
+             <Button
                 color="secondary"
                 size="md"
                 iconLeading={Database01}
@@ -224,44 +454,34 @@ export function StockTable() {
               >
                 {isSyncing ? "Sincronizando..." : "Sincronizar DB"}
               </Button>
-              <Button
-                color="secondary"
-                size="md"
-                iconLeading={RefreshCw01}
-                onClick={refresh}
-                disabled={isLoading || isSyncing}
-              >
-                {isLoading ? "Actualizando..." : "Actualizar"}
-              </Button> */}
               <TableRowActionsDropdown />
             </div>
           }
         />
 
         {/* Search and Filter Bar */}
-        <div className="flex flex-col gap-4 border-b border-secondary px-4 py-4 md:px-6 md:flex-row md:items-center md:justify-between">
-          <ButtonGroup 
-            selectedKeys={selectedFilter} 
-            onSelectionChange={setSelectedFilter}
-          >
-            <ButtonGroupItem id="all">Nuevos</ButtonGroupItem>
-            <ButtonGroupItem id="disponibles">Usados</ButtonGroupItem>
-            <ButtonGroupItem id="asignados">Sin Reparación</ButtonGroupItem>
-          </ButtonGroup>
+        <div className="flex flex-col gap-4 border-b border-secondary px-4 py-4 md:px-6">
+          <div className="w-full overflow-x-auto">
+            <Tabs
+              selectedKey={activeView}
+              onSelectionChange={(key) => setActiveView(key as StockView)}
+              className="w-full"
+            >
+              <Tabs.List type="button-minimal" items={tabItems} className="min-w-max">
+                {(item) => <Tabs.Item key={item.id} {...item} />}
+              </Tabs.List>
+            </Tabs>
+          </div>
 
-          <div className="flex gap-3">
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Input
               icon={SearchLg}
               aria-label="Buscar dispositivos"
               placeholder="Buscar por IMEI, nombre asignado, ticket, modelo o distribuidora..."
               value={searchQuery}
               onChange={(val) => setSearchQuery(val)}
-              className="w-full md:w-80"
+              className="w-full sm:w-80"
             />
-            
-            {/* <Button size="md" color="secondary" iconLeading={FilterLines}>
-              Filtros
-            </Button> */}
           </div>
         </div>
 
@@ -274,84 +494,142 @@ export function StockTable() {
           <>
             <Table 
               aria-label="Inventario de teléfonos" 
-              selectionMode="multiple" 
+
               
               sortDescriptor={sortDescriptor} 
               onSortChange={setSortDescriptor}
             >
               <Table.Header>
-                <Table.Head id="modelo" label="Modelo" isRowHeader allowsSorting className="w-48" />
-                <Table.Head id="imei" label="IMEI" allowsSorting className="w-40" />
-                <Table.Head id="distribuidora" label="Distribuidora" allowsSorting />
-                <Table.Head id="asignado_a" label="Asignado A" allowsSorting />
-                <Table.Head id="ticket" label="Ticket" allowsSorting className="hidden lg:table-cell" />
+                <Table.Head id="modelo" label="Dispositivo" isRowHeader allowsSorting className="w-52" />
+                <Table.Head id="estado" label="Estado" className="w-40" />
+                <Table.Head id="asignado_a" label="Asignacion" allowsSorting />
+                <Table.Head id="distribuidora" label="Logistica" allowsSorting />
+                <Table.Head id="ticket" label="Tickets" allowsSorting className="hidden xl:table-cell" />
                 <Table.Head id="actions" className="w-20" />
               </Table.Header>
 
               <Table.Body items={paginatedData}>
-                {(item) => (
-                  <Table.Row id={item.imei}>
-                    <Table.Cell>
-                      <div className="flex flex-col">
-                        <span className="font-medium text-primary">{item.modelo || "-"}</span>
-                        <span className="text-xs text-secondary">{getStatusBadge(item.asignado_a)}</span>
-                      </div>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <span className="font-mono text-xs">{item.imei || "-"}</span>
-                    </Table.Cell>
-                    <Table.Cell>
-                      {getDistribuidoraBadge(item.distribuidora)}
-                    </Table.Cell>
-                    <Table.Cell className="whitespace-nowrap">
-                      {item.asignado_a ? (
-                        <span className="font-medium text-primary">{item.asignado_a}</span>
-                      ) : (
-                        <span className="text-gray-400 italic">No asignado</span>
-                      )}
-                    </Table.Cell>
-                    <Table.Cell className="whitespace-nowrap hidden lg:table-cell">
-                      <div className="cursor-pointer" onClick={() => openTicket(item.ticket)}>
-                        <BadgeWithDot  type="modern" color={item.ticket ? 'blue-light' :"brand"} size="lg">
-                          { 'DESA-'+ item.ticket || "Sin ticket"}
-                        </BadgeWithDot>
-                      </div>
-                    </Table.Cell>
-                    <Table.Cell className="px-3">
-                      <div className="flex justify-end gap-0.5">
-                        {/* Botón Asignar - Solo si es SOTI, está activo, en estado NEW y sin asignación */}
-                        {item.soti_info?.is_in_soti && 
-                         item.status === 'NEW' && 
-                         !item.is_assigned && (
-                          <ButtonUtility 
-                            size="xs" 
-                            color="secondary" 
-                            tooltip="Asignar dispositivo" 
-                            icon={Send01}
-                            onClick={() => {
-                              setSelectedDevice(item);
-                              setIsAssignModalOpen(true);
-                            }}
-                          />
+                {(item) => {
+                  const latestAssignment = getLatestAssignment(item);
+                  const deviceState = getDeviceState(item);
+                  const assigneeName = latestAssignment?.assignee_name || item.asignado_a || null;
+                  const assigneePhone = latestAssignment?.assignee_phone || null;
+                  const deliveryLocation = latestAssignment?.delivery_location || null;
+                  const assignmentDate = latestAssignment?.at ? formatDate(latestAssignment.at) : null;
+                  const shippingVoucher = latestAssignment?.shipping_voucher_id || null;
+                  const expectsReturn = Boolean(latestAssignment?.expects_return);
+
+                  return (
+                    <Table.Row id={item.imei}>
+                      <Table.Cell>
+                        <div className="flex flex-col gap-1">
+                          <Link
+                            href={`/stock/${item.imei}`}
+                            className="font-medium text-primary transition hover:text-brand-primary hover:underline"
+                          >
+                            {item.modelo || "-"}
+                          </Link>
+                          <span className="font-mono text-xs text-secondary">{item.imei || "-"}</span>
+                        </div>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <div className="flex flex-col gap-1">
+                          <BadgeWithDot type="modern" color={deviceState.color} size="lg">
+                            {deviceState.label}
+                          </BadgeWithDot>
+                          <span className="text-xs text-tertiary">
+                            {item.soti_info?.last_sync
+                              ? `SOTI ${formatDate(item.soti_info.last_sync)}`
+                              : `Actualizado ${formatDate(item.updated_at)}`}
+                          </span>
+                        </div>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <div className="flex flex-col gap-1">
+                          {assigneeName ? (
+                            <span className="font-medium text-primary">{assigneeName}</span>
+                          ) : (
+                            <span className="text-xs italic text-tertiary">Sin asignar</span>
+                          )}
+                          {assigneePhone ? (
+                            <span className="text-xs text-tertiary">{assigneePhone}</span>
+                          ) : null}
+                          {deliveryLocation ? (
+                            <span className="text-xs text-tertiary">{deliveryLocation}</span>
+                          ) : null}
+                          {assignmentDate ? (
+                            <span className="text-xs text-tertiary">Ultimo mov. {assignmentDate}</span>
+                          ) : null}
+                        </div>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <div className="flex flex-col gap-1">
+                          {getDistribuidoraBadge(item.distribuidora)}
+                          {shippingVoucher ? (
+                            <Badge size="sm" color="brand">
+                              Vale {shippingVoucher}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-tertiary">Sin vale</span>
+                          )}
+                          {expectsReturn ? (
+                            <Badge size="sm" color="warning">
+                              Espera devolucion
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </Table.Cell>
+                      <Table.Cell className="hidden xl:table-cell">
+                        {item.ticket ? (
+                          <div className="cursor-pointer" onClick={() => openTicket(item.ticket)}>
+                            <BadgeWithDot type="modern" color="blue-light" size="lg">
+                              {`DESA-${item.ticket}`}
+                            </BadgeWithDot>
+                          </div>
+                        ) : (
+                          <BadgeWithDot type="modern" color="gray" size="lg">
+                            Sin asignar
+                          </BadgeWithDot>
                         )}
-                        
-                        {/* Botón Ver Asignación - Solo si está asignado */}
-                        {item.is_assigned && (
-                          <ButtonUtility 
-                            size="xs" 
-                            color="secondary" 
-                            tooltip="Ver detalles de asignación" 
-                            icon={Eye}
-                            onClick={() => {
-                              setSelectedDevice(item);
-                              setIsViewAssignmentModalOpen(true);
-                            }}
-                          />
-                        )}
-                      </div>
-                    </Table.Cell>
-                  </Table.Row>
-                )}
+                      </Table.Cell>
+                      <Table.Cell className="px-3">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button size="sm" color="secondary" href={`/stock/${item.imei}`}>
+                            Ver mas
+                          </Button>
+
+                          {item.soti_info?.is_in_soti &&
+                           item.status === 'NEW' &&
+                           !item.is_assigned && (
+                            <ButtonUtility
+                              size="xs"
+                              color="secondary"
+                              tooltip="Asignar dispositivo"
+                              icon={Send01}
+                              onClick={() => {
+                                setSelectedDevice(item);
+                                setIsAssignModalOpen(true);
+                              }}
+                            />
+                          )}
+
+                          {item.is_assigned && (
+                            <ButtonUtility
+                              size="xs"
+                              color="secondary"
+                              tooltip="Ver detalles de asignacion"
+                              icon={Eye}
+                              onClick={() => {
+                                setSelectedDevice(item);
+                                setIsViewAssignmentModalOpen(true);
+                              }}
+                            />
+                          )}
+                        </div>
+                      </Table.Cell>
+                    </Table.Row>
+                  );
+                }}
               </Table.Body>
             </Table>
 
@@ -398,4 +676,5 @@ export function StockTable() {
     </div>
   );
 }
+
 

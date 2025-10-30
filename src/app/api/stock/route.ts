@@ -69,9 +69,22 @@ const DEVICE_INCLUDE = {
       id: true,
       type: true,
       assigned_to: true,
+      assignee_name: true,
+      assignee_phone: true,
       ticket_id: true,
       at: true,
       status: true,
+      shipping_voucher_id: true,
+      delivery_location: true,
+      contact_details: true,
+      expects_return: true,
+      return_device_imei: true,
+      distributor: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
     take: 10, // Limit to recent assignments for performance
   },

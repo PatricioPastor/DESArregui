@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from '@/lib/prisma';
 import type { StockRecord, InventoryStatus } from "@/lib/types";
+import { getStockRecords } from '@/lib/sheets';
 
 interface SyncRequest {
   devices: StockRecord[];
@@ -16,7 +17,9 @@ interface SyncResponse {
   errors: number;
   error?: string;
   details?: {
-    errors: Array<{
+    totalErrors: number;
+    truncated: boolean;
+    sampledErrors: Array<{
       device: Partial<StockRecord>;
       error: string;
     }>;
@@ -24,20 +27,31 @@ interface SyncResponse {
 }
 
 const resolveInventoryStatus = (record: StockRecord): InventoryStatus => {
-  const assigned = record.asignado_a && record.asignado_a.trim() !== '';
-  const hasTicket = record.ticket && record.ticket.trim() !== '';
+  const assigned = record.asignado_a?.trim();
+  const hasTicket = record.ticket?.trim();
 
-  if (assigned && hasTicket) return 'USED';
-  if (assigned) return 'ASSIGNED';
-  if (hasTicket) return 'NOT_REPAIRED';
+  if (assigned || hasTicket) {
+    return 'ASSIGNED';
+  }
+
   return 'NEW';
 };
 
 export async function POST(request: NextRequest) {
   try {
-    const body: SyncRequest = await request.json();
+    let body: SyncRequest | null = null;
 
-    if (!body.devices || !Array.isArray(body.devices)) {
+    try {
+      body = await request.json();
+    } catch (error) {
+      // Ignore JSON parse errors (e.g., empty body) and fallback to sheet data
+      body = null;
+    }
+
+    const incomingDevices = Array.isArray(body?.devices) ? body!.devices : null;
+    const devices = incomingDevices?.length ? incomingDevices : await getStockRecords();
+
+    if (!devices || devices.length === 0) {
       return NextResponse.json<SyncResponse>(
         {
           success: false,
@@ -47,9 +61,15 @@ export async function POST(request: NextRequest) {
           createdModels: 0,
           createdDistributors: 0,
           errors: 1,
-          error: 'Invalid request: devices array is required',
+          error: 'No se encontraron dispositivos en la hoja STOCK',
         },
         { status: 400 }
+      );
+    }
+
+    if (incomingDevices && incomingDevices.length !== devices.length) {
+      console.info(
+        `[stock-sync] Se recibieron ${incomingDevices.length} registros por body, pero se sincronizarán ${devices.length} filas de Sheets.`
       );
     }
 
@@ -60,11 +80,14 @@ export async function POST(request: NextRequest) {
       createdModels: 0,
       createdDistributors: 0,
       errors: 0,
+      truncatedErrors: false,
       errorDetails: [] as Array<{ device: Partial<StockRecord>; error: string }>,
     };
 
+    const MAX_ERROR_DETAILS = 5;
+
     // Process each record
-    for (const stockRecord of body.devices) {
+    for (const stockRecord of devices) {
       try {
         // Skip records without IMEI
         if (!stockRecord.imei || stockRecord.imei.trim() === "") {
@@ -72,23 +95,31 @@ export async function POST(request: NextRequest) {
         }
 
         // Extract model info (assuming format "brand model" or just "model")
-        const modelParts = stockRecord.modelo ? stockRecord.modelo.split(" ") : ["Unknown"];
-        const brand = modelParts.length > 1 ? modelParts[0] : "Unknown";
-        const model = modelParts.length > 1 ? modelParts.slice(1).join(" ") : (stockRecord.modelo || "Unknown");
+        const normalizedModel = stockRecord.modelo?.trim() ?? "";
+        const modelParts = normalizedModel.split(/\s+/).filter(Boolean);
+
+        const brand = modelParts[0] ?? "Unknown";
+        const model = modelParts.slice(1).join(" ") || brand || "Unknown";
 
         // Create or find phone model
         let phoneModel = await prisma.phone_model.findFirst({
           where: {
-            brand: brand,
-            model: model
+            brand: {
+              equals: brand,
+              mode: "insensitive",
+            },
+            model: {
+              equals: model,
+              mode: "insensitive",
+            },
           }
         });
 
         if (!phoneModel) {
           phoneModel = await prisma.phone_model.create({
             data: {
-              brand: brand,
-              model: model,
+              brand,
+              model,
               storage_gb: null,
               color: ""
             }
@@ -100,14 +131,20 @@ export async function POST(request: NextRequest) {
         let distributor = null;
         if (stockRecord.distribuidora && stockRecord.distribuidora.trim()) {
           // Extract distributor name from path format (e.g., "\\\\EDEA\\folder" -> "EDEA")
-          let distributorName = stockRecord.distribuidora;
+          let distributorName = stockRecord.distribuidora.trim();
           if (distributorName.startsWith("\\\\")) {
             const pathParts = distributorName.substring(2).split("\\");
             distributorName = pathParts[0] || distributorName;
           }
+          distributorName = distributorName.trim();
 
-          distributor = await prisma.distributor.findUnique({
-            where: { name: distributorName }
+          distributor = await prisma.distributor.findFirst({
+            where: {
+              name: {
+                equals: distributorName,
+                mode: "insensitive",
+              }
+            }
           });
 
           if (!distributor) {
@@ -159,13 +196,17 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         results.errors++;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        results.errorDetails.push({
-          device: {
-            imei: stockRecord.imei,
-            modelo: stockRecord.modelo,
-          },
-          error: errorMessage,
-        });
+        if (results.errorDetails.length < MAX_ERROR_DETAILS) {
+          results.errorDetails.push({
+            device: {
+              imei: stockRecord.imei,
+              modelo: stockRecord.modelo,
+            },
+            error: errorMessage,
+          });
+        } else {
+          results.truncatedErrors = true;
+        }
       }
     }
 
@@ -182,7 +223,9 @@ export async function POST(request: NextRequest) {
     // Include error details if there were errors
     if (results.errors > 0) {
       response.details = {
-        errors: results.errorDetails,
+        totalErrors: results.errors,
+        truncated: results.truncatedErrors,
+        sampledErrors: results.errorDetails,
       };
     }
 
