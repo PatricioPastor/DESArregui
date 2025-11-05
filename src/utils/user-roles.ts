@@ -10,6 +10,8 @@ export type UserRole = 'admin' | 'viewer';
  */
 const ADMIN_EMAILS = [
   'patricio.pastor@desasa.com.ar',
+  'santiago.bailez@desasa.com.ar',
+  'gianfranco.petrella@desasa.com.ar',
 ];
 
 /**
