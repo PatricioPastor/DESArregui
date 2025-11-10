@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getDeviceDetailByImei } from "@/lib/stock-detail";
 import type { device_status } from "@/generated/prisma/index";
+import { z } from "zod";
 
 type RouteParams = {
   imei: string;
@@ -219,6 +220,123 @@ export async function PUT(request: Request, context: { params: Promise<RoutePara
     return NextResponse.json(
       {
         success: false,
+        error: error instanceof Error ? error.message : "Error interno del servidor",
+      },
+      { status: 500 },
+    );
+  }
+}
+
+// Schema de validación para DELETE
+const DeleteDeviceSchema = z.object({
+  reason: z.string().optional(),
+  final_status: z.enum(['DISPOSED', 'SCRAPPED', 'DONATED']).optional(),
+});
+
+// DELETE - Soft delete de un dispositivo
+export async function DELETE(request: Request, context: { params: Promise<RouteParams> }) {
+  const { imei: rawImei } = await context.params;
+  const imei = rawImei?.trim();
+
+  if (!imei) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "IMEI requerido",
+      },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const body = await request.json();
+
+    // Validar datos de entrada
+    const validationResult = DeleteDeviceSchema.safeParse(body);
+    if (!validationResult.success) {
+      return NextResponse.json(
+        {
+          error: "Datos inválidos",
+          details: validationResult.error.cause
+        },
+        { status: 400 }
+      );
+    }
+
+    const { reason, final_status } = validationResult.data;
+
+    // Verificar que el dispositivo existe
+    const device = await prisma.device.findUnique({
+      where: { imei },
+      include: {
+        assignments: {
+          where: {
+            status: "active",
+          },
+        },
+      },
+    });
+
+    if (!device) {
+      return NextResponse.json(
+        { error: `No se encontró un dispositivo con IMEI ${imei}` },
+        { status: 404 }
+      );
+    }
+
+    // Verificar que no está ya eliminado
+    if (device.is_deleted) {
+      return NextResponse.json(
+        { error: "El dispositivo ya está eliminado" },
+        { status: 400 }
+      );
+    }
+
+    // Verificar que no tiene asignaciones activas
+    if (device.assignments.length > 0) {
+      return NextResponse.json(
+        { error: "No se puede eliminar un dispositivo con asignaciones activas" },
+        { status: 400 }
+      );
+    }
+
+    // Preparar datos de actualización
+    const updateData: any = {
+      is_deleted: true,
+      deleted_at: new Date(),
+      deletion_reason: reason || null,
+    };
+
+    // Si se especifica un estado final, actualizarlo
+    if (final_status) {
+      updateData.status = final_status;
+    }
+
+    // Realizar el soft delete
+    await prisma.device.update({
+      where: { imei },
+      data: updateData,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Dispositivo ${imei} eliminado correctamente`,
+    });
+
+  } catch (error: any) {
+    console.error(`DELETE /api/stock/${imei} error:`, error);
+
+    if (error?.code === "P2025") {
+      return NextResponse.json(
+        {
+          error: `No se encontró un dispositivo con IMEI ${imei}`,
+        },
+        { status: 404 },
+      );
+    }
+
+    return NextResponse.json(
+      {
         error: error instanceof Error ? error.message : "Error interno del servidor",
       },
       { status: 500 },

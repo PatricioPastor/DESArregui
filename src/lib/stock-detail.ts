@@ -10,6 +10,9 @@ const DEVICE_STATUS_TO_INVENTORY: Record<device_status, InventoryStatus> = {
   USED: "USED",
   REPAIRED: "REPAIRED",
   NOT_REPAIRED: "NOT_REPAIRED",
+  DISPOSED: "NOT_REPAIRED",
+  DONATED: "NOT_REPAIRED",
+  SCRAPPED: "NOT_REPAIRED",
   LOST: "LOST",
 };
 
@@ -18,6 +21,9 @@ const STATUS_LABELS: Record<InventoryStatus, string> = {
   ASSIGNED: "Asignado",
   USED: "Usado",
   REPAIRED: "Reparado",
+  DISPOSED: "Fuera de inventario",
+  DONATED: "Fuera de inventario",
+  SCRAPPED: "Fuera de inventario",
   NOT_REPAIRED: "Sin Reparación",
   LOST: "Perdido",
 };

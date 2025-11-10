@@ -5,6 +5,9 @@ export const INVENTORY_STATUS_COLOR: Record<string, "success" | "brand" | "warni
   Reparado: "success",
   "Sin Reparación": "warning",
   Perdido: "error",
+  "Dado de Baja": "gray",
+  Chatarra: "error",
+  Donado: "success",
 };
 
 export const formatInventoryDate = (value?: string | null, withTime: boolean = true) => {

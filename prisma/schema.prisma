@@ -88,9 +88,9 @@ model phone_model {
 model distributor {
   id          String       @id @default(cuid())
   name        String       @unique
+  assignments assignment[]
   devices     device[]
   purchases   purchase[]
-  assignments assignment[]
 
   @@map("distributor")
   @@schema("phones")
@@ -111,25 +111,29 @@ model purchase {
 }
 
 model device {
-  id             String        @id @default(cuid())
-  imei           String        @unique
-  assigned_to    String?
-  created_at     DateTime      @default(now())
-  distributor_id String?
-  model_id       String
-  purchase_id    String?
-  ticket_id      String?
-  updated_at     DateTime      @updatedAt
-  status         device_status @default(NEW)
-  assignments    assignment[]
-  distributor    distributor?  @relation(fields: [distributor_id], references: [id])
-  model          phone_model   @relation(fields: [model_id], references: [id], onDelete: SetDefault)
-  purchase       purchase?     @relation(fields: [purchase_id], references: [id])
+  id              String        @id @default(cuid())
+  imei            String        @unique
+  assigned_to     String?
+  created_at      DateTime      @default(now())
+  distributor_id  String?
+  model_id        String
+  purchase_id     String?
+  ticket_id       String?
+  updated_at      DateTime      @updatedAt
+  status          device_status @default(NEW)
+  deleted_at      DateTime?
+  deletion_reason String?
+  is_deleted      Boolean       @default(false)
+  assignments     assignment[]
+  distributor     distributor?  @relation(fields: [distributor_id], references: [id])
+  model           phone_model   @relation(fields: [model_id], references: [id], onDelete: SetDefault)
+  purchase        purchase?     @relation(fields: [purchase_id], references: [id])
 
   @@index([model_id])
   @@index([status])
   @@index([assigned_to])
   @@index([ticket_id])
+  @@index([is_deleted])
   @@map("device")
   @@schema("phones")
 }
@@ -137,25 +141,29 @@ model device {
 model assignment {
   id                  String          @id @default(cuid())
   at                  DateTime        @default(now())
-  assigned_to         String? // Deprecated - usar assignee_name
-  assignee_name       String?
-  assignee_phone      String?
-  distributor_id      String?
-  delivery_location   String?
-  contact_details     String?
-  shipping_voucher_id String?         @unique
-  expects_return      Boolean         @default(false)
-  return_device_imei  String?
+  assigned_to         String?
   device_id           String?
-  soti_device_id      String?
   ticket_id           String?
   type                assignment_type
+  assignee_name       String?
+  assignee_phone      String?
+  contact_details     String?
+  delivery_location   String?
+  distributor_id      String?
+  expects_return      Boolean         @default(false)
+  return_device_imei  String?
+  shipping_voucher_id String?         @unique
+  soti_device_id      String?
   status              String          @default("active")
-
-  // Relations
-  device      device?      @relation(fields: [device_id], references: [id], onDelete: Cascade)
-  soti_device soti_device? @relation(fields: [soti_device_id], references: [id])
-  distributor distributor? @relation(fields: [distributor_id], references: [id])
+  closed_at           DateTime?
+  closure_reason      String?
+  shipping_status     String?         @default("pending")
+  shipped_at          DateTime?
+  delivered_at        DateTime?
+  shipping_notes      String?
+  device              device?         @relation(fields: [device_id], references: [id], onDelete: Cascade)
+  distributor         distributor?    @relation(fields: [distributor_id], references: [id])
+  soti_device         soti_device?    @relation(fields: [soti_device_id], references: [id])
 
   @@index([device_id, at])
   @@index([soti_device_id])
@@ -166,8 +174,8 @@ model assignment {
 }
 
 model soti_device {
-  id                  String   @id @default(cuid())
-  device_name         String   @unique
+  id                  String       @id @default(cuid())
+  device_name         String       @unique
   assigned_user       String?
   model               String?
   imei                String
@@ -184,14 +192,12 @@ model soti_device {
   custom_email        String?
   android_enter_email String?
   location            String?
-  status              String   @default("NEW")
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
-  last_sync           DateTime @default(now())
-  is_active           Boolean  @default(true)
-
-  // Relations
-  assignments assignment[]
+  created_at          DateTime     @default(now())
+  updated_at          DateTime     @updatedAt
+  last_sync           DateTime     @default(now())
+  is_active           Boolean      @default(true)
+  status              String       @default("NEW")
+  assignments         assignment[]
 
   @@unique([imei, device_name])
   @@index([imei])
@@ -252,14 +258,14 @@ model ticket {
   status            String
   category_status   String
   replacement_count Int?
-  pending_count     Int?
-  replacement_type  String?
   is_replacement    Boolean  @default(false)
   is_assignment     Boolean  @default(false)
   is_active         Boolean  @default(true)
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
   last_sync         DateTime @default(now())
+  pending_count     Int?
+  replacement_type  String?
 
   @@index([key])
   @@index([label])
@@ -278,6 +284,9 @@ enum device_status {
   REPAIRED
   NOT_REPAIRED
   LOST
+  DISPOSED
+  SCRAPPED
+  DONATED
 
   @@schema("phones")
 }

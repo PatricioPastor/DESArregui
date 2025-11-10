@@ -178,8 +178,17 @@ export function StockTable() {
   const [stateFilter, setStateFilter] = useState<string>("all");
   const [distributorFilter, setDistributorFilter] = useState<string>("all");
   const [statusDbFilter, setStatusDbFilter] = useState<string>("all");
+  const [modelFilter, setModelFilter] = useState<string>("all");
 
-  const { data, isLoading, error, lastUpdated, refresh } = useFilteredStockData(searchQuery);
+  const serverFilters = useMemo(
+    () => (modelFilter !== "all" ? { modelId: modelFilter } : undefined),
+    [modelFilter],
+  );
+
+  const { data, isLoading, error, lastUpdated, refresh, modelOptions } = useFilteredStockData(
+    searchQuery,
+    serverFilters,
+  );
 
   const categorizedData = useMemo(() => {
     const pendingSotiRecords: InventoryRecord[] = [];
@@ -260,6 +269,18 @@ const stateFilterOptions = useMemo(
     []
   );
 
+  const modelSelectOptions = useMemo(() => {
+    const options = (modelOptions ?? []).map((option) => ({
+      id: option.id,
+      label: option.label,
+    }));
+
+    return [
+      { id: "all", label: "Todos los modelos" },
+      ...options,
+    ];
+  }, [modelOptions]);
+
   const distributorOptions = useMemo(() => {
     const names = new Set<string>();
 
@@ -279,11 +300,20 @@ const stateFilterOptions = useMemo(
   }, [data]);
 
   const hasActiveFilters =
-    stateFilter !== "all" || distributorFilter !== "all" || statusDbFilter !== "all";
+    stateFilter !== "all" ||
+    distributorFilter !== "all" ||
+    statusDbFilter !== "all" ||
+    modelFilter !== "all";
+
+  useEffect(() => {
+    if (modelFilter !== "all" && !modelSelectOptions.some((option) => option.id === modelFilter)) {
+      setModelFilter("all");
+    }
+  }, [modelFilter, modelSelectOptions]);
 
   useEffect(() => {
     setPage(1);
-  }, [stateFilter, distributorFilter, statusDbFilter, activeView]);
+  }, [stateFilter, distributorFilter, statusDbFilter, activeView, modelFilter]);
 
   const filteredWithFilters = useMemo(() => {
     return filteredData.filter((record) => {
@@ -299,6 +329,10 @@ const stateFilterOptions = useMemo(
         return false;
       }
 
+      if (modelFilter !== "all" && record.model_details?.id !== modelFilter) {
+        return false;
+      }
+
       if (distributorFilter !== "all") {
         const distributorName = getDistribuidoraName(record.distribuidora);
         if ((distributorName || "-") !== distributorFilter) {
@@ -308,12 +342,13 @@ const stateFilterOptions = useMemo(
 
       return true;
     });
-  }, [filteredData, stateFilter, distributorFilter, statusDbFilter]);
+  }, [filteredData, stateFilter, distributorFilter, statusDbFilter, modelFilter]);
 
   const clearFilters = () => {
     setStateFilter("all");
     setDistributorFilter("all");
     setStatusDbFilter("all");
+    setModelFilter("all");
   };
 
   // Sort data
@@ -635,7 +670,8 @@ const stateFilterOptions = useMemo(
                   <Badge size="sm" color="brand" className="ml-2">
                     {(stateFilter !== "all" ? 1 : 0) +
                       (distributorFilter !== "all" ? 1 : 0) +
-                      (statusDbFilter !== "all" ? 1 : 0)}
+                      (statusDbFilter !== "all" ? 1 : 0) +
+                      (modelFilter !== "all" ? 1 : 0)}
                   </Badge>
                 )}
               </Button>
@@ -656,7 +692,20 @@ const stateFilterOptions = useMemo(
 
           {showFilters && (
             <div className="flex flex-col gap-3 rounded-lg border border-surface bg-surface-1 p-4">
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                <Select
+                  label="Modelo"
+                  selectedKey={modelFilter}
+                  onSelectionChange={(key) => setModelFilter(key as string)}
+                  items={modelSelectOptions}
+                >
+                  {(item) => (
+                    <Select.Item id={item.id}>
+                      {item.label}
+                    </Select.Item>
+                  )}
+                </Select>
+
                 <Select
                   label="Estado"
                   selectedKey={stateFilter}

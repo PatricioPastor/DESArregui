@@ -30,6 +30,23 @@ export default async function DeviceDetailPage({
   const statusLabel = detail.inventory.status_label;
   const statusColor = INVENTORY_STATUS_COLOR[statusLabel] ?? "brand";
 
+  // Determinar si se puede asignar manualmente
+  const currentAssignment = detail.assignments.find(
+    (assignment) => (assignment.status || "").toLowerCase() === "active"
+  ) || null;
+
+  const isDeleted = (detail.inventory.raw as any)?.is_deleted ?? false;
+
+  const canManuallyAssign =
+    !isDeleted &&
+    detail.inventory.status !== "ASSIGNED" &&
+    !currentAssignment &&
+    !detail.soti_device?.is_active;
+
+  const canDelete =
+    !isDeleted &&
+    !currentAssignment;
+
   return (
     <section className="flex flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <header className="flex flex-col gap-4 border-b border-secondary pb-4">
@@ -71,7 +88,13 @@ export default async function DeviceDetailPage({
         </div>
       </header>
 
-      <DeviceDetailClient detail={detail} statusLabel={statusLabel} statusColor={statusColor} />
+      <DeviceDetailClient
+        detail={detail}
+        statusLabel={statusLabel}
+        statusColor={statusColor}
+        canManuallyAssign={canManuallyAssign}
+        canDelete={canDelete}
+      />
     </section>
   );
 }

@@ -55,19 +55,27 @@ export interface StockRecord {
   ticket: string;
 }
 // Inventory Device Record (database-backed)
-// Maps to Prisma's device_status enum: NEW, ASSIGNED, USED, REPAIRED, NOT_REPAIRED, LOST
+// Maps to Prisma's device_status enum: NEW, ASSIGNED, USED, REPAIRED, NOT_REPAIRED, LOST, DISPOSED, SCRAPPED, DONATED
 export type InventoryStatus =
   | 'NEW'
   | 'ASSIGNED'
   | 'USED'
   | 'REPAIRED'
   | 'NOT_REPAIRED'
-  | 'LOST';
+  | 'LOST'
+  | 'DISPOSED'
+  | 'SCRAPPED'
+  | 'DONATED';
 
 export interface InventoryStatusSummary {
   status: InventoryStatus;
   label: string;
   count: number;
+}
+
+export interface InventoryModelOption {
+  id: string;
+  label: string;
 }
 
 export interface SOTIDeviceInfo {
@@ -116,6 +124,7 @@ export interface InventoryResponse {
   totalRecords?: number;
   lastUpdated?: string;
   statusSummary?: InventoryStatusSummary[];
+  modelOptions?: InventoryModelOption[];
   error?: string;
 }
 
@@ -295,7 +304,6 @@ export interface CallReportsFilters {
   duracion_max?: number;
   searchKeyword?: string;
 }
-
 
 
 

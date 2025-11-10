@@ -20,6 +20,9 @@ const DEVICE_STATUS_TO_INVENTORY: Record<device_status, InventoryStatus> = {
   REPAIRED: 'REPAIRED',
   NOT_REPAIRED: 'NOT_REPAIRED',
   LOST: 'LOST',
+  DISPOSED: 'DISPOSED',
+  SCRAPPED: 'SCRAPPED',
+  DONATED: 'DONATED',
 } as const;
 
 const INVENTORY_STATUSES: InventoryStatus[] = Object.values(DEVICE_STATUS_TO_INVENTORY);
@@ -31,6 +34,9 @@ const STATUS_LABELS: Record<InventoryStatus, string> = {
   REPAIRED: 'Reparado',
   NOT_REPAIRED: 'Sin Reparación',
   LOST: 'Perdido',
+  DISPOSED: 'Dado de Baja',
+  SCRAPPED: 'Chatarra',
+  DONATED: 'Donado',
 } as const;
 
 // Legacy status mapping for backwards compatibility
@@ -201,9 +207,16 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') as device_status | null;
     const distributor = searchParams.get('distributor');
     const assigned = searchParams.get('assigned');
+    const modelId = searchParams.get('model');
+    const includeDeleted = searchParams.get('include_deleted') === 'true';
 
     // Build where conditions
     const whereConditions: any = {};
+
+    // Filter out deleted devices by default
+    if (!includeDeleted) {
+      whereConditions.is_deleted = false;
+    }
 
     // Search across multiple fields
     if (search) {
@@ -227,6 +240,11 @@ export async function GET(request: NextRequest) {
       whereConditions.distributor_id = distributor;
     }
 
+    // Filter by model
+    if (modelId) {
+      whereConditions.model_id = modelId;
+    }
+
     // Filter by assignment status
     if (assigned === 'true') {
       whereConditions.assigned_to = { not: null };
@@ -234,11 +252,43 @@ export async function GET(request: NextRequest) {
       whereConditions.assigned_to = null;
     }
 
-    const devices = await prisma.device.findMany({
-      where: whereConditions,
-      include: DEVICE_INCLUDE,
-      orderBy: { created_at: 'desc' },
-    });
+    const modelWhereFilter = includeDeleted
+      ? {
+          devices: {
+            some: {},
+          },
+        }
+      : {
+          devices: {
+            some: {
+              is_deleted: false,
+            },
+          },
+        };
+
+    const [devices, distinctModels] = await Promise.all([
+      prisma.device.findMany({
+        where: whereConditions,
+        include: DEVICE_INCLUDE,
+        orderBy: { created_at: 'desc' },
+      }),
+      prisma.phone_model.findMany({
+        where: modelWhereFilter,
+        select: {
+          id: true,
+          brand: true,
+          model: true,
+          storage_gb: true,
+          color: true,
+        },
+        orderBy: [
+          { brand: 'asc' },
+          { model: 'asc' },
+          { storage_gb: 'asc' },
+          { color: 'asc' },
+        ],
+      }),
+    ]);
 
     // Get SOTI data for all IMEIs in a single query
     const deviceImeis = devices.map(d => d.imei);
@@ -261,6 +311,12 @@ export async function GET(request: NextRequest) {
     });
 
     const statusSummary = buildStatusSummary(inventoryRecords);
+    const modelOptions = distinctModels
+      .map(model => ({
+        id: model.id,
+        label: formatModelDisplay(model),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' }));
 
     const response: InventoryResponse = {
       success: true,
@@ -269,6 +325,7 @@ export async function GET(request: NextRequest) {
       totalRecords: inventoryRecords.length,
       lastUpdated: new Date().toISOString(),
       statusSummary,
+      modelOptions,
     };
 
     return NextResponse.json(response);
@@ -428,5 +485,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
 

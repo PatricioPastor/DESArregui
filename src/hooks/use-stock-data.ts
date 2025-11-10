@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import type { InventoryRecord, InventoryResponse, InventoryStatusSummary } from "@/lib/types";
+import type {
+    InventoryModelOption,
+    InventoryRecord,
+    InventoryResponse,
+    InventoryStatusSummary,
+} from "@/lib/types";
 
 interface UseStockDataReturn {
     data: InventoryRecord[];
@@ -89,21 +94,47 @@ export function useStockData(autoRefreshMs: number = 15 * 60 * 1000): UseStockDa
 }
 
 // Hook for filtered stock data with server-side search functionality
-export function useFilteredStockData(searchQuery: string = "") {
+interface StockFilters {
+    modelId?: string | null;
+    status?: string | null;
+    distributorId?: string | null;
+    assigned?: boolean | null;
+    includeDeleted?: boolean;
+}
+
+export function useFilteredStockData(searchQuery: string = "", filters?: StockFilters) {
     const [data, setData] = useState<InventoryRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [lastUpdated, setLastUpdated] = useState<string | null>(null);
     const [totalRecords, setTotalRecords] = useState(0);
     const [statusSummary, setStatusSummary] = useState<InventoryStatusSummary[]>([]);
+    const [modelOptions, setModelOptions] = useState<InventoryModelOption[]>([]);
 
-    const fetchFilteredData = useCallback(async (query: string = "") => {
+    const fetchFilteredData = useCallback(async (query: string = "", currentFilters: StockFilters = {}) => {
         try {
             setIsLoading(true);
             setError(null);
             const url = new URL("/api/stock", window.location.origin);
             if (query && query.trim()) {
                 url.searchParams.set("search", query.trim());
+            }
+            if (currentFilters.modelId) {
+                url.searchParams.set("model", currentFilters.modelId);
+            }
+            if (currentFilters.status) {
+                url.searchParams.set("status", currentFilters.status);
+            }
+            if (currentFilters.distributorId) {
+                url.searchParams.set("distributor", currentFilters.distributorId);
+            }
+            if (currentFilters.assigned === true) {
+                url.searchParams.set("assigned", "true");
+            } else if (currentFilters.assigned === false) {
+                url.searchParams.set("assigned", "false");
+            }
+            if (typeof currentFilters.includeDeleted === "boolean") {
+                url.searchParams.set("include_deleted", String(currentFilters.includeDeleted));
             }
 
             const response = await fetch(url.toString(), {
@@ -126,6 +157,7 @@ export function useFilteredStockData(searchQuery: string = "") {
             setTotalRecords(result.totalRecords || 0);
             setStatusSummary(result.statusSummary || []);
             setLastUpdated(result.lastUpdated || null);
+            setModelOptions(result.modelOptions || []);
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
             setError(errorMessage);
@@ -136,13 +168,13 @@ export function useFilteredStockData(searchQuery: string = "") {
     }, []);
 
     const refresh = useCallback(async () => {
-        await fetchFilteredData(searchQuery);
-    }, [fetchFilteredData, searchQuery]);
+        await fetchFilteredData(searchQuery, filters ?? {});
+    }, [fetchFilteredData, searchQuery, filters]);
 
     // Fetch data when search query changes
     useEffect(() => {
-        fetchFilteredData(searchQuery);
-    }, [fetchFilteredData, searchQuery]);
+        fetchFilteredData(searchQuery, filters ?? {});
+    }, [fetchFilteredData, searchQuery, filters]);
 
     return {
         data,
@@ -151,6 +183,7 @@ export function useFilteredStockData(searchQuery: string = "") {
         lastUpdated,
         totalRecords,
         statusSummary,
+        modelOptions,
         refresh,
     };
 }

@@ -1,21 +1,46 @@
 ﻿"use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Tabs } from "@/components/application/tabs/tabs";
 import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
+import { Button } from "@/components/base/buttons/button";
 import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icons";
-import { Send01, UploadCloud02, User01, Building02, File01, Clock, Package } from "@untitledui/icons";
+import { Send01, UploadCloud02, User01, Building02, File01, Clock, Package, UserPlus01, Trash01, CheckCircle, Truck01 } from "@untitledui/icons";
 import { cx } from "@/utils/cx";
 import type { DeviceDetail } from "@/lib/stock-detail";
 import { formatInventoryDate } from "@/lib/inventory-utils";
+import { AssignManualModal } from "@/features/stock/components/assign-manual";
+import { DeleteDeviceModal } from "@/features/stock/components/delete";
+import { CloseAssignmentModal } from "@/features/stock/components/close-assignment";
+import { UpdateShippingModal } from "@/features/stock/components/update-shipping";
 
 interface DeviceDetailClientProps {
   detail: DeviceDetail;
   statusLabel: string;
   statusColor: "success" | "brand" | "warning" | "gray" | "error";
+  canManuallyAssign: boolean;
+  canDelete: boolean;
 }
 
-export function DeviceDetailClient({ detail, statusLabel, statusColor }: DeviceDetailClientProps) {
+export function DeviceDetailClient({ detail, statusLabel, statusColor, canManuallyAssign, canDelete }: DeviceDetailClientProps) {
+  const router = useRouter();
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isCloseAssignmentModalOpen, setIsCloseAssignmentModalOpen] = useState(false);
+  const [isUpdateShippingModalOpen, setIsUpdateShippingModalOpen] = useState(false);
+  const [selectedAssignmentForClose, setSelectedAssignmentForClose] = useState<{
+    id: string;
+    assignee_name: string;
+    at: string;
+  } | null>(null);
+  const [selectedAssignmentForShipping, setSelectedAssignmentForShipping] = useState<{
+    id: string;
+    assignee_name: string;
+    shipping_voucher_id: string | null;
+    shipping_status: string | null;
+  } | null>(null);
   const { inventory, assignments, tickets, soti_device: sotiDevice, purchase } = detail;
   const currentAssignment =
     assignments.find((assignment) => (assignment.status || "").toLowerCase() === "active") ||
@@ -69,9 +94,87 @@ export function DeviceDetailClient({ detail, statusLabel, statusColor }: DeviceD
     },
   ];
 
+  const handleAssignSuccess = () => {
+    router.refresh();
+  };
+
+  const handleDeleteSuccess = () => {
+    router.push('/stock');
+  };
+
+  const handleCloseAssignmentSuccess = () => {
+    setSelectedAssignmentForClose(null);
+    router.refresh();
+  };
+
+  const handleOpenCloseAssignmentModal = (assignment: { id: string; assignee_name: string; at: string }) => {
+    setSelectedAssignmentForClose(assignment);
+    setIsCloseAssignmentModalOpen(true);
+  };
+
+  const handleUpdateShippingSuccess = () => {
+    setSelectedAssignmentForShipping(null);
+    router.refresh();
+  };
+
+  const handleOpenUpdateShippingModal = (assignment: { id: string; assignee_name: string; shipping_voucher_id: string | null; shipping_status: string | null }) => {
+    setSelectedAssignmentForShipping(assignment);
+    setIsUpdateShippingModalOpen(true);
+  };
+
+  const deviceInfo = {
+    id: inventory.raw?.id || "",
+    imei: inventory.imei,
+    modelo: inventory.modelo,
+    status: inventory.status,
+  };
+
+  const assignmentInfo = currentAssignment ? {
+    id: currentAssignment.id,
+    assignee_name: currentAssignment.assignee_name || "Sin nombre",
+    at: currentAssignment.at,
+  } : null;
+
   return (
-    <div className="flex flex-col gap-6">
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <>
+      {/* Botones de acción */}
+      {(canManuallyAssign || canDelete || currentAssignment) && (
+        <div className="flex justify-end gap-3">
+          {currentAssignment && (
+            <Button
+              color="secondary"
+              size="md"
+              iconLeading={CheckCircle}
+              onClick={() => setIsCloseAssignmentModalOpen(true)}
+            >
+              Finalizar Asignación
+            </Button>
+          )}
+          {canManuallyAssign && (
+            <Button
+              color="primary"
+              size="md"
+              iconLeading={UserPlus01}
+              onClick={() => setIsAssignModalOpen(true)}
+            >
+              Asignar Manualmente
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              color="primary-destructive"
+              size="md"
+              iconLeading={Trash01}
+              onClick={() => setIsDeleteModalOpen(true)}
+            >
+              Eliminar Dispositivo
+            </Button>
+          )}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-6">
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {metrics.map((metric) => (
           <div
             key={metric.id}
@@ -199,12 +302,13 @@ export function DeviceDetailClient({ detail, statusLabel, statusColor }: DeviceD
                     <th className="px-4 py-3 font-medium">Distribuidora</th>
                     <th className="px-4 py-3 font-medium">Vale</th>
                     <th className="px-4 py-3 font-medium">Ticket</th>
+                    <th className="px-4 py-3 font-medium">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-secondary text-tertiary">
                   {assignments.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-6 text-center text-sm text-secondary">
+                      <td colSpan={8} className="px-4 py-6 text-center text-sm text-secondary">
                         No hay asignaciones registradas para este dispositivo.
                       </td>
                     </tr>
@@ -230,6 +334,41 @@ export function DeviceDetailClient({ detail, statusLabel, statusColor }: DeviceD
                         <td className="px-4 py-3">{assignment.distributor?.name || "-"}</td>
                         <td className="px-4 py-3">{assignment.shipping_voucher_id || "-"}</td>
                         <td className="px-4 py-3">{assignment.ticket_id || "-"}</td>
+                        <td className="px-4 py-3">
+                          {(assignment.status || "").toLowerCase() === "active" && (
+                            <div className="flex items-center gap-2">
+                              <Button
+                                color="secondary"
+                                size="sm"
+                                iconLeading={Truck01}
+                                onClick={() =>
+                                  handleOpenUpdateShippingModal({
+                                    id: assignment.id,
+                                    assignee_name: assignment.assignee_name || "Sin nombre",
+                                    shipping_voucher_id: assignment.shipping_voucher_id || null,
+                                    shipping_status: (assignment as any).shipping_status || null,
+                                  })
+                                }
+                              >
+                                Envío
+                              </Button>
+                              <Button
+                                color="secondary"
+                                size="sm"
+                                iconLeading={CheckCircle}
+                                onClick={() =>
+                                  handleOpenCloseAssignmentModal({
+                                    id: assignment.id,
+                                    assignee_name: assignment.assignee_name || "Sin nombre",
+                                    at: assignment.at,
+                                  })
+                                }
+                              >
+                                Finalizar
+                              </Button>
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     ))
                   )}
@@ -287,5 +426,42 @@ export function DeviceDetailClient({ detail, statusLabel, statusColor }: DeviceD
         </Tabs.Panel>
       </Tabs>
     </div>
+
+      {/* Modal de asignación manual */}
+      <AssignManualModal
+        open={isAssignModalOpen}
+        onOpenChange={setIsAssignModalOpen}
+        deviceInfo={deviceInfo}
+        onSuccess={handleAssignSuccess}
+      />
+
+      {/* Modal de cierre de asignación */}
+      {(selectedAssignmentForClose || assignmentInfo) && (
+        <CloseAssignmentModal
+          open={isCloseAssignmentModalOpen}
+          onOpenChange={setIsCloseAssignmentModalOpen}
+          assignmentInfo={selectedAssignmentForClose || assignmentInfo!}
+          onSuccess={handleCloseAssignmentSuccess}
+        />
+      )}
+
+      {/* Modal de actualización de envío */}
+      {selectedAssignmentForShipping && (
+        <UpdateShippingModal
+          open={isUpdateShippingModalOpen}
+          onOpenChange={setIsUpdateShippingModalOpen}
+          assignmentInfo={selectedAssignmentForShipping}
+          onSuccess={handleUpdateShippingSuccess}
+        />
+      )}
+
+      {/* Modal de eliminación */}
+      <DeleteDeviceModal
+        open={isDeleteModalOpen}
+        onOpenChange={setIsDeleteModalOpen}
+        deviceInfo={deviceInfo}
+        onSuccess={handleDeleteSuccess}
+      />
+    </>
   );
 }
