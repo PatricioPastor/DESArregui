@@ -5,9 +5,12 @@ import { z } from "zod";
 
 // Schema de validación para la creación de asignaciones
 const CreateAssignmentSchema = z.object({
-  soti_device_id: z.string().min(1, "El ID del dispositivo es requerido"),
+  device_id: z.string().min(1, "El ID del dispositivo es requerido"),
+  soti_device_id: z.string().optional().nullable(),
+  assignment_type: z.enum(["new", "replacement"]).default("new"),
   assignee_name: z.string().min(1, "El nombre del asignatario es requerido"),
   assignee_phone: z.string().min(1, "El teléfono es requerido"),
+  assignee_email: z.string().email().optional().nullable(),
   distributor_id: z.string().min(1, "La distribuidora es requerida"),
   delivery_location: z.string().min(1, "La ubicación de entrega es requerida"),
   contact_details: z.string().optional(),
@@ -108,41 +111,28 @@ export async function POST(request: NextRequest) {
 
     const data = validationResult.data;
 
-    // Verificar que el dispositivo existe y cumple las condiciones
-    const sotiDevice = await prisma.soti_device.findUnique({
-      where: { id: data.soti_device_id },
+    // Verificar que el dispositivo existe
+    const device = await prisma.device.findUnique({
+      where: { id: data.device_id },
       include: {
         assignments: {
           where: {
             status: "active",
           },
         },
+        model: true,
       },
     });
 
-    if (!sotiDevice) {
+    if (!device) {
       return NextResponse.json(
         { error: "Dispositivo no encontrado" },
         { status: 404 }
       );
     }
 
-    // Verificar condiciones del dispositivo
-    if (!sotiDevice.is_active) {
-      return NextResponse.json(
-        { error: "El dispositivo no está activo" },
-        { status: 400 }
-      );
-    }
-
-    if (sotiDevice.status !== "NEW") {
-      return NextResponse.json(
-        { error: `El dispositivo no está en estado NEW (estado actual: ${sotiDevice.status})` },
-        { status: 400 }
-      );
-    }
-
-    if (sotiDevice.assignments.length > 0) {
+    // Verificar si ya tiene una asignación activa
+    if (device.assignments.length > 0) {
       return NextResponse.json(
         { error: "El dispositivo ya tiene una asignación activa" },
         { status: 400 }
@@ -161,16 +151,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Buscar el device correspondiente por IMEI
-    const device = await prisma.device.findFirst({
-      where: { imei: sotiDevice.imei },
-    });
+    // Si se proporciona soti_device_id, verificar que existe
+    let sotiDevice = null;
+    if (data.soti_device_id) {
+      sotiDevice = await prisma.soti_device.findUnique({
+        where: { id: data.soti_device_id },
+      });
 
-    if (!device) {
-      return NextResponse.json(
-        { error: "No se encontró el dispositivo correspondiente en la tabla device" },
-        { status: 404 }
-      );
+      if (!sotiDevice) {
+        return NextResponse.json(
+          { error: "Dispositivo SOTI no encontrado" },
+          { status: 404 }
+        );
+      }
     }
 
     // Iniciar transacción para crear la asignación y actualizar el dispositivo
@@ -180,36 +173,49 @@ export async function POST(request: NextRequest) {
         ? generateShippingVoucherId()
         : null;
 
+      // Determinar shipping_status inicial
+      const initialShippingStatus = data.generate_voucher ? "pending" : null;
+
       // Crear la asignación
       const assignment = await tx.assignment.create({
         data: {
-          device_id: device.id, // Agregar el device_id
-          soti_device_id: data.soti_device_id,
+          device_id: device.id,
+          soti_device_id: data.soti_device_id || null,
           assignee_name: data.assignee_name,
           assignee_phone: data.assignee_phone,
+          assignee_email: data.assignee_email || null,
           distributor_id: data.distributor_id,
           delivery_location: data.delivery_location,
           contact_details: data.contact_details || null,
           shipping_voucher_id: shippingVoucherId,
+          shipping_status: initialShippingStatus,
           expects_return: data.expects_return,
           return_device_imei: data.return_device_imei || null,
-          type: "ASSIGN",
+          return_status: null,
+          type: data.assignment_type === "replacement" ? "REPLACE" : "ASSIGN",
           status: "active",
         },
         include: {
           soti_device: true,
           distributor: true,
+          device: {
+            include: {
+              model: true,
+            },
+          },
         },
       });
 
-      // Actualizar el estado del dispositivo SOTI
-      await tx.soti_device.update({
-        where: { id: data.soti_device_id },
-        data: {
-          status: "ASSIGNED",
-          assigned_user: data.assignee_name,
-        },
-      });
+      // Actualizar el estado del dispositivo SOTI si existe
+      if (data.soti_device_id) {
+        await tx.soti_device.update({
+          where: { id: data.soti_device_id },
+          data: {
+            status: "ASSIGNED",
+            assigned_user: data.assignee_name,
+          },
+        });
+      }
 
       // Actualizar el estado del dispositivo en la tabla device
       await tx.device.update({

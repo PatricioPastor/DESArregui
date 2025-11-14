@@ -79,6 +79,11 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
       if (!assignment.shipped_at) {
         updateData.shipped_at = new Date();
       }
+
+      // ✅ Si espera devolución, auto-setear return_status a "pending"
+      if (assignment.expects_return && !assignment.return_status) {
+        updateData.return_status = "pending";
+      }
     }
 
     // Actualizar la asignación

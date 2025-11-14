@@ -164,7 +164,7 @@ const buildInventoryRecord = (device: DeviceWithRelations, sotiDevice?: any): In
     },
     distribuidora: device.distributor?.name || '',
     distribuidora_id: device.distributor?.id || null,
-    asignado_a: device.assigned_to || '',
+    asignado_a: lastAssignment?.assignee_name || device.assigned_to || '',
     ticket: device.ticket_id || '',
     is_assigned: Boolean(device.assigned_to) || assignments.some(a => a.type === 'ASSIGN' && (!a.status || a.status === 'active')),
     created_at: device.created_at.toISOString(),

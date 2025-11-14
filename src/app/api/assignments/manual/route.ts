@@ -8,6 +8,7 @@ const CreateManualAssignmentSchema = z.object({
   device_id: z.string().min(1, "El ID del dispositivo es requerido"),
   assignee_name: z.string().min(1, "El nombre del asignatario es requerido"),
   assignee_phone: z.string().min(1, "El teléfono es requerido"),
+  assignee_email: z.string().email().optional().nullable(),
   distributor_id: z.string().min(1, "La distribuidora es requerida"),
   delivery_location: z.string().min(1, "La ubicación de entrega es requerida"),
   contact_details: z.string().optional(),
@@ -126,6 +127,9 @@ export async function POST(request: NextRequest) {
       ? generateShippingVoucherId()
       : null;
 
+    // Determinar shipping_status inicial
+    const initialShippingStatus = data.generate_voucher ? "pending" : null;
+
     // Crear la asignación en una transacción
     const result = await prisma.$transaction(async (tx) => {
       // 1. Crear la asignación
@@ -135,12 +139,15 @@ export async function POST(request: NextRequest) {
           soti_device_id: null, // No hay SOTI device
           assignee_name: data.assignee_name,
           assignee_phone: data.assignee_phone,
+          assignee_email: data.assignee_email || null,
           distributor_id: data.distributor_id,
           delivery_location: data.delivery_location,
           contact_details: data.contact_details || null,
           shipping_voucher_id: shippingVoucherId,
+          shipping_status: initialShippingStatus,
           expects_return: data.expects_return,
           return_device_imei: data.expects_return ? data.return_device_imei : null,
+          return_status: null,
           type: "ASSIGN",
           status: "active", // Por ahora, hasta implementar FSM
         },

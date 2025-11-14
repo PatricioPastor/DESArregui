@@ -6,8 +6,9 @@ import { Button } from "@/components/base/buttons/button";
 import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { useAssignDeviceStore } from "@/store/assign-device.store";
 import { useShallow } from "zustand/react/shallow";
+import { AssignmentTypeStep } from "./steps/assignment-type-step";
+import { TransportStep } from "./steps/transport-step";
 import { AssignmentInfoStep } from "./steps/assignment-info-step";
-import { VoucherStep } from "./steps/voucher-step";
 import { ReturnStep } from "./steps/return-step";
 import { X, ChevronLeft, ChevronRight, Check } from "@untitledui/icons";
 import { toast } from "sonner";
@@ -123,14 +124,23 @@ export function AssignDeviceModal({
     }
   };
 
+  // Calcular el total de pasos según el tipo de asignación
+  const getTotalSteps = () => {
+    // Si es reemplazo: 4 pasos (Tipo, Transporte, Info, Devolución)
+    // Si es nueva: 3 pasos (Tipo, Transporte, Info)
+    return formData.assignment_type === "replacement" ? 4 : 3;
+  };
+
   // Determinar qué paso mostrar
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <AssignmentInfoStep />;
+        return <AssignmentTypeStep />;
       case 2:
-        return <VoucherStep />;
+        return <TransportStep />;
       case 3:
+        return <AssignmentInfoStep />;
+      case 4:
         return <ReturnStep />;
       default:
         return null;
@@ -141,11 +151,13 @@ export function AssignDeviceModal({
   const getStepTitle = () => {
     switch (currentStep) {
       case 1:
-        return "Información de la Asignación";
+        return "Tipo de Asignación";
       case 2:
-        return "Vale de Envío";
+        return "Método de Entrega";
       case 3:
-        return "Gestión de Devolución";
+        return "Información de Contacto";
+      case 4:
+        return "Dispositivo a Devolver";
       default:
         return "Asignar Dispositivo";
     }
@@ -153,31 +165,31 @@ export function AssignDeviceModal({
 
   // Validar si puede avanzar al siguiente paso
   const canProceed = () => {
-    if (currentStep === 1) {
-      return formData.assignee_name.trim() && 
-             formData.assignee_phone.trim() && 
-             formData.distributor_id && 
-             formData.delivery_location.trim();
+    switch (currentStep) {
+      case 1:
+        // Paso 1: Tipo de asignación - siempre puede avanzar (tiene valor por defecto)
+        return true;
+      case 2:
+        // Paso 2: Método de entrega - siempre puede avanzar (tiene valor por defecto)
+        return true;
+      case 3:
+        // Paso 3: Información de contacto - validar campos requeridos
+        return formData.assignee_name.trim() &&
+               formData.assignee_phone.trim() &&
+               formData.distributor_id &&
+               formData.delivery_location.trim();
+      case 4:
+        // Paso 4: Devolución - validar IMEI si espera devolución
+        return formData.expects_return ? formData.return_device_imei.trim() !== '' : true;
+      default:
+        return true;
     }
-    if (currentStep === 3 && formData.expects_return) {
-      return formData.return_device_imei.trim() !== '';
-    }
-    return true;
   };
 
   // Determinar si es el último paso
   const isLastStep = () => {
-    // Si no genera vale, el paso 2 es el último
-    if (currentStep === 2 && !formData.generate_voucher) {
-      return false; // El botón "No, asignar sin vale" maneja el submit
-    }
-    // Si genera vale, el paso 3 es el último
-    return currentStep === 3 || (currentStep === 2 && !formData.generate_voucher);
-  };
-
-  // Determinar si debe mostrar el botón de submit
-  const shouldShowSubmit = () => {
-    return currentStep === 3 || (currentStep === 2 && formData.generate_voucher === false);
+    const totalSteps = getTotalSteps();
+    return currentStep === totalSteps;
   };
 
   return (
@@ -188,7 +200,7 @@ export function AssignDeviceModal({
           <div className="flex items-center w-full justify-between px-6 py-4 border-b border-secondary">
             <div>
               <h2 className="text-lg font-semibold text-primary">{getStepTitle()}</h2>
-              <p className="text-sm text-secondary mt-1">Paso {currentStep} de 3</p>
+              <p className="text-sm text-secondary mt-1">Paso {currentStep} de {getTotalSteps()}</p>
             </div>
             <ButtonUtility
               onClick={handleClose}
@@ -201,7 +213,7 @@ export function AssignDeviceModal({
           {/* Progress bar */}
           <div className="px-6 py-3 border-b border-secondary">
             <div className="flex gap-2">
-              {[1, 2, 3].map((step) => (
+              {Array.from({ length: getTotalSteps() }, (_, i) => i + 1).map((step) => (
                 <div
                   key={step}
                   className={cx(
@@ -221,7 +233,7 @@ export function AssignDeviceModal({
           {/* Footer */}
           <div className="flex justify-between gap-3 px-6 py-4 border-t border-surface w-full">
             <div>
-              {currentStep > 1 && currentStep !== 2 && (
+              {currentStep > 1 && (
                 <Button
                   color="secondary"
                   onClick={handlePrevious}
@@ -232,17 +244,17 @@ export function AssignDeviceModal({
                 </Button>
               )}
             </div>
-            
+
             <div className="flex gap-3">
-              <Button 
-                color="secondary" 
-                onClick={handleClose} 
+              <Button
+                color="secondary"
+                onClick={handleClose}
                 disabled={isLoading}
               >
                 Cancelar
               </Button>
-              
-              {currentStep === 1 && (
+
+              {!isLastStep() && (
                 <Button
                   color="primary"
                   onClick={handleNext}
@@ -252,8 +264,8 @@ export function AssignDeviceModal({
                   Siguiente
                 </Button>
               )}
-              
-              {currentStep === 3 && (
+
+              {isLastStep() && (
                 <Button
                   color="primary"
                   onClick={handleSubmit}

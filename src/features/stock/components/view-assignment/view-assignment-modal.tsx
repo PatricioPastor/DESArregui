@@ -6,22 +6,31 @@ import { Dialog } from "react-aria-components";
 import { Button } from "@/components/base/buttons/button";
 import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
-import { X, Download01, File01, User01, Phone01, MarkerPin01, Calendar, Package, Phone } from "@untitledui/icons";
+import { X, Download01, File01, User01, Phone01, MarkerPin01, Calendar, Package, Phone, Truck01 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { generateShippingVoucherPDF } from "@/utils/pdf-generator";
 import { Modal, ModalOverlay } from "@/components/application/modals/modal";
+import { Timeline } from "@/components/application/timeline/timeline";
+import { useAssignmentTimeline } from "@/hooks/use-assignment-timeline";
 
 interface Assignment {
   id: string;
+  type: string;
   assignee_name: string;
   assignee_phone: string;
   delivery_location: string;
   contact_details?: string;
-  shipping_voucher_id?: string;
+  shipping_voucher_id?: string | null;
+  shipping_status?: string | null;
+  shipped_at?: string | null;
+  delivered_at?: string | null;
   expects_return: boolean;
   return_device_imei?: string;
+  return_status?: string | null;
+  return_received_at?: string | null;
   status: string;
   at: string;
+  closed_at?: string | null;
   distributor?: {
     id: string;
     name: string;
@@ -49,6 +58,9 @@ export function ViewAssignmentModal({
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+  // Generate timeline items from assignment
+  const timelineItems = useAssignmentTimeline(assignment);
 
   // Fetch assignment details when modal opens
   useEffect(() => {
@@ -172,6 +184,15 @@ export function ViewAssignmentModal({
                       Vale: {assignment.shipping_voucher_id}
                     </BadgeWithDot>
                   )}
+                </div>
+
+                {/* Timeline de progreso */}
+                <div className="rounded-lg bg-gray-900/40 border border-gray-700 p-5">
+                  <h3 className="text-sm font-semibold text-primary mb-4 flex items-center gap-2">
+                    <Truck01 className="w-4 h-4" />
+                    Progreso de la Asignación
+                  </h3>
+                  <Timeline items={timelineItems} />
                 </div>
 
                 {/* Información del Asignatario */}

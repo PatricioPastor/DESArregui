@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
-import { ArrowCircleRight, Box, CheckCircle, Database01, FilterLines, Plus, SearchLg, Send01, UploadCloud02, Eye, X, Edit01 } from "@untitledui/icons";
+import { ArrowCircleRight, Box, CheckCircle, Database01, FilterLines, Plus, SearchLg, Send01, UploadCloud02, Eye, X, Edit01, Truck01 } from "@untitledui/icons";
 import type { SortDescriptor } from "react-aria-components";
 import { PaginationCardMinimal } from "@/components/application/pagination/pagination";
 import { Table, TableCard, TableRowActionsDropdown } from "@/components/application/table/table";
@@ -18,11 +18,13 @@ import { CreateStockModal } from "@/features/stock/components/create/create-stoc
 import { AssignDeviceModal } from "@/features/stock/components/assign";
 import { ViewAssignmentModal } from "@/features/stock/components/view-assignment";
 import { EditStockModal } from "@/features/stock/components/edit/edit-stock-modal";
+import { RegisterReturnModal } from "@/features/stock/components/register-return";
+import { UpdateShippingModal } from "@/features/stock/components/update-shipping";
 import type { InventoryRecord } from "@/lib/types";
 import { toast } from "sonner";
-import { DEVICE_STATUS_OPTIONS, DEVICE_STATUS_LABELS } from "@/constants/device-status";
+import { DEVICE_STATUS_OPTIONS } from "@/constants/device-status";
 
-type StockView = "overview" | "pending_soti" | "in_transit" | "completed";
+type StockView = "overview" | "linked_soti" | "in_transit" | "completed";
 
 const COMPLETED_ASSIGNMENT_STATUSES = new Set(["completed", "closed", "finalized", "returned"]);
 
@@ -35,7 +37,6 @@ interface DeviceStateBadge {
 }
 
 const JIRA_BASE_URL = 'https://desasa.atlassian.net/browse/';
-const STATUS_LABELS: Record<string, string> = { ...DEVICE_STATUS_LABELS };
 
 const normalizeDistributorName = (fullPath: string) =>
   getDistribuidoraName(fullPath).trim().toLowerCase();
@@ -43,7 +44,7 @@ const normalizeDistributorName = (fullPath: string) =>
 const isDepot = (fullPath: string) => normalizeDistributorName(fullPath) === "deposito";
 
 const getLatestAssignment = (record: InventoryRecord) => {
-  const assignments = (record.raw?.assignments as any[]) ?? [];
+  const assignments = (record) ? record.raw?.assignments as any[] : [];
   return assignments[0] ?? null;
 };
 
@@ -52,8 +53,25 @@ const getDeviceState = (record: InventoryRecord): DeviceStateBadge => {
   const normalizedAssignmentStatus =
     typeof latestAssignment?.status === "string" ? latestAssignment.status.toLowerCase() : null;
 
-  if (latestAssignment?.shipping_voucher_id && (!normalizedAssignmentStatus || normalizedAssignmentStatus === "active")) {
-    return { label: "En envio", color: "blue-light", description: latestAssignment.shipping_voucher_id };
+  // Estados de envío y devolución
+  if (latestAssignment && normalizedAssignmentStatus === "active") {
+    const shippingStatus = (latestAssignment as any).shipping_status;
+    const returnStatus = (latestAssignment as any).return_status;
+
+    // ⚠️ Entregado pero pendiente de devolución
+    if (shippingStatus === "delivered" && returnStatus === "pending") {
+      return { label: "Pend. devolución", color: "warning" };
+    }
+
+    // ✅ Entregado y dispositivo devuelto (listo para cerrar)
+    if (shippingStatus === "delivered" && returnStatus === "received") {
+      return { label: "Listo para cerrar", color: "success" };
+    }
+
+    // 🚚 En envío con vale
+    if (latestAssignment.shipping_voucher_id) {
+      return { label: "En envio", color: "blue-light", description: latestAssignment.shipping_voucher_id };
+    }
   }
 
   if (normalizedAssignmentStatus && COMPLETED_ASSIGNMENT_STATUSES.has(normalizedAssignmentStatus)) {
@@ -64,10 +82,6 @@ const getDeviceState = (record: InventoryRecord): DeviceStateBadge => {
 
   if (treatedAsAssigned) {
     return { label: "Asignado", color: "brand" };
-  }
-
-  if (record.soti_info?.is_in_soti) {
-    return { label: "Pendiente SOTI", color: "warning" };
   }
 
   if (!treatedAsAssigned && (record.status === "NEW" || record.status === "ASSIGNED")) {
@@ -152,11 +166,12 @@ const getTicketInfo = (ticket: string | null | undefined): TicketInfo | null => 
   };
 };
 
-const isRecordAssigned = (record: InventoryRecord) =>
-  record.is_assigned && !isDepot(record.distribuidora);
+const isRecordAssigned = (record: InventoryRecord) => {
+  const latestAssignment = getLatestAssignment(record);
+  return latestAssignment && latestAssignment.status === 'active';
+};
 
-const isRecordAvailable = (record: InventoryRecord) =>
-  !record.is_assigned || isDepot(record.distribuidora);
+const isRecordAvailable = (record: InventoryRecord) => !isRecordAssigned(record);
 
 export function StockTable() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -171,6 +186,8 @@ export function StockTable() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isViewAssignmentModalOpen, setIsViewAssignmentModalOpen] = useState(false);
+  const [isRegisterReturnModalOpen, setIsRegisterReturnModalOpen] = useState(false);
+  const [isUpdateShippingModalOpen, setIsUpdateShippingModalOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<InventoryRecord | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [deviceToEdit, setDeviceToEdit] = useState<InventoryRecord | null>(null);
@@ -191,7 +208,7 @@ export function StockTable() {
   );
 
   const categorizedData = useMemo(() => {
-    const pendingSotiRecords: InventoryRecord[] = [];
+    const linkedSotiRecords: InventoryRecord[] = [];
     const inTransitRecords: InventoryRecord[] = [];
     const completedRecords: InventoryRecord[] = [];
     let assignedCount = 0;
@@ -204,8 +221,9 @@ export function StockTable() {
         availableCount += 1;
       }
 
+      // Vinculados con SOTI sin asignación formal = necesitan reconciliación
       if (record.soti_info?.is_in_soti && !isRecordAssigned(record)) {
-        pendingSotiRecords.push(record);
+        linkedSotiRecords.push(record);
       }
 
       const lastAssignment = record.raw?.assignments?.[0];
@@ -223,7 +241,7 @@ export function StockTable() {
     });
 
     return {
-      pendingSotiRecords,
+      linkedSotiRecords,
       inTransitRecords,
       completedRecords,
       assignedCount,
@@ -232,7 +250,7 @@ export function StockTable() {
   }, [data]);
 
   const {
-    pendingSotiRecords,
+    linkedSotiRecords,
     inTransitRecords,
     completedRecords,
     assignedCount,
@@ -241,8 +259,8 @@ export function StockTable() {
 
   const filteredData = useMemo(() => {
     switch (activeView) {
-      case "pending_soti":
-        return pendingSotiRecords;
+      case "linked_soti":
+        return linkedSotiRecords;
       case "in_transit":
         return inTransitRecords;
       case "completed":
@@ -250,7 +268,7 @@ export function StockTable() {
       default:
         return data;
     }
-  }, [activeView, data, pendingSotiRecords, inTransitRecords, completedRecords]);
+  }, [activeView, data, linkedSotiRecords, inTransitRecords, completedRecords]);
 
 const stateFilterOptions = useMemo(
     () => [
@@ -379,7 +397,7 @@ const stateFilterOptions = useMemo(
 
   const numberFormatter = useMemo(() => new Intl.NumberFormat("es-AR"), []);
   const totalDevices = data.length;
-  const pendingSotiCount = pendingSotiRecords.length;
+  const linkedSotiCount = linkedSotiRecords.length;
   const inTransitCount = inTransitRecords.length;
   const completedCount = completedRecords.length;
 
@@ -391,7 +409,7 @@ const stateFilterOptions = useMemo(
         { id: "total", label: "Inventario total", value: "...", icon: Database01, subtitle: "" },
         { id: "assigned", label: "Asignados activos", value: "...", icon: ArrowCircleRight, subtitle: "" },
         { id: "available", label: "Disponibles", value: "...", icon: Box, subtitle: "" },
-        { id: "pending", label: "Pendientes SOTI", value: "...", icon: UploadCloud02, subtitle: "" },
+        { id: "linked_soti", label: "Vinculados SOTI", value: "...", icon: UploadCloud02, subtitle: "" },
         { id: "in_transit", label: "En envio", value: "...", icon: Send01, subtitle: "" },
         { id: "completed", label: "Asignaciones cerradas", value: "...", icon: CheckCircle, subtitle: "" },
       ];
@@ -420,11 +438,11 @@ const stateFilterOptions = useMemo(
         subtitle: "Sin asignacion activa",
       },
       {
-        id: "pending",
-        label: "Pendientes SOTI",
-        value: formatValue(pendingSotiCount),
+        id: "linked_soti",
+        label: "Vinculados SOTI",
+        value: formatValue(linkedSotiCount),
         icon: UploadCloud02,
-        subtitle: "En SOTI sin asignacion",
+        subtitle: "En SOTI sin asignacion formal",
       },
       {
         id: "in_transit",
@@ -447,7 +465,7 @@ const stateFilterOptions = useMemo(
     totalDevices,
     assignedCount,
     availableCount,
-    pendingSotiCount,
+    linkedSotiCount,
     inTransitCount,
     completedCount,
   ]);
@@ -455,11 +473,11 @@ const stateFilterOptions = useMemo(
   const tabItems = useMemo(
     () => [
       { id: "overview" as const, label: "Resumen", badge: totalDevices },
-      { id: "pending_soti" as const, label: "Pendientes SOTI", badge: pendingSotiCount },
+      { id: "linked_soti" as const, label: "Vinculados SOTI", badge: linkedSotiCount },
       { id: "in_transit" as const, label: "En envio", badge: inTransitCount },
       { id: "completed" as const, label: "Cerradas", badge: completedCount },
     ],
-    [totalDevices, pendingSotiCount, inTransitCount, completedCount],
+    [totalDevices, linkedSotiCount, inTransitCount, completedCount],
   );
 
   useEffect(() => {
@@ -764,33 +782,24 @@ const stateFilterOptions = useMemo(
               onSortChange={setSortDescriptor}
             >
               <Table.Header>
-                <Table.Head id="modelo" label="Dispositivo" isRowHeader allowsSorting className="w-56 min-w-[14rem]" />
-                <Table.Head id="estado" label="Estado" className="w-48 min-w-[12rem]" />
-                <Table.Head id="asignado_a" label="Asignacion" allowsSorting className="w-60 min-w-[15rem]" />
-                <Table.Head id="distribuidora" label="Logistica" allowsSorting className="w-48 min-w-[12rem]" />
-                <Table.Head id="ticket" label="Tickets" allowsSorting className="hidden w-[160px] min-w-[10rem] xl:table-cell" />
-                <Table.Head id="actions" className="w-28 min-w-[7rem]" />
+                <Table.Head id="modelo" label="Dispositivo" isRowHeader allowsSorting className="w-auto" />
+                <Table.Head id="estado" label="Estado" className="w-40" />
+                <Table.Head id="asignado_a" label="Asignacion" allowsSorting className="w-auto" />
+                <Table.Head id="distribuidora" label="Logistica" allowsSorting className="w-auto" />
+                <Table.Head id="ticket" label="Tickets" allowsSorting className="hidden xl:table-cell w-32" />
+                <Table.Head id="actions" className="w-24" />
               </Table.Header>
 
               <Table.Body items={paginatedData}>
                 {(item) => {
                   const latestAssignment = getLatestAssignment(item);
                   const deviceState = getDeviceState(item);
-                  const assignmentCode = isRecordAssigned(item)
-                    ? latestAssignment?.assigned_to ||
-                      latestAssignment?.id ||
-                      item.asignado_a ||
-                      null
-                    : null;
-                  const assigneeName =
-                    assignmentCode && latestAssignment?.assignee_name
-                      ? latestAssignment.assignee_name
-                      : isRecordAssigned(item)
-                        ? item.asignado_a || null
-                        : null;
-                  const assigneePhone = isRecordAssigned(item) ? latestAssignment?.assignee_phone || null : null;
-                  const deliveryLocation = isRecordAssigned(item) ? latestAssignment?.delivery_location || null : null;
-                  const assignmentDate = isRecordAssigned(item) && latestAssignment?.at ? formatDate(latestAssignment.at) : null;
+                  const hasActiveAssignment = latestAssignment && latestAssignment.status === 'active';
+                  const assignmentCode = hasActiveAssignment ? latestAssignment.id.slice(-8).toUpperCase() : null;
+                  const assigneeName = hasActiveAssignment ? (latestAssignment.assignee_name || item.asignado_a) : (item.asignado_a || null);
+                  const assigneePhone = hasActiveAssignment ? latestAssignment.assignee_phone : null;
+                  const deliveryLocation = hasActiveAssignment ? latestAssignment.delivery_location : null;
+                  const assignmentDate = hasActiveAssignment && latestAssignment.at ? formatDate(latestAssignment.at) : null;
                   const shippingVoucher = latestAssignment?.shipping_voucher_id || null;
                   const expectsReturn = Boolean(latestAssignment?.expects_return);
 
@@ -808,57 +817,33 @@ const stateFilterOptions = useMemo(
                         </div>
                       </Table.Cell>
                       <Table.Cell>
-                        <div className="flex flex-col gap-1">
-                          <BadgeWithDot type="modern" color={deviceState.color} size="lg">
-                            {deviceState.label}
-                          </BadgeWithDot>
-                          <span className="text-xs text-tertiary">
-                            {item.soti_info?.last_sync
-                              ? `SOTI ${formatDate(item.soti_info.last_sync)}`
-                              : `Actualizado ${formatDate(item.updated_at)}`}
-                          </span>
-                        </div>
+                        <BadgeWithDot type="modern" color={deviceState.color} size="sm">
+                          {deviceState.label}
+                        </BadgeWithDot>
                       </Table.Cell>
                       <Table.Cell>
-                        <div className="flex flex-col gap-1">
-                          {assignmentCode ? (
-                            <Badge size="sm" color="brand" className="w-fit uppercase tracking-tight">
-                              {assignmentCode}
-                            </Badge>
+                        <div className="flex flex-col gap-0.5">
+                          {assigneeName ? (
+                            <>
+                              <span className="text-sm font-medium text-primary truncate">{assigneeName}</span>
+                              {assigneePhone && (
+                                <span className="text-xs text-tertiary">{assigneePhone}</span>
+                              )}
+                            </>
                           ) : (
-                            <Badge size="sm" color="gray" className="w-fit">
-                              Sin asignacion
-                            </Badge>
+                            <Badge size="sm" color="gray">Sin asignacion</Badge>
                           )}
-                          {assigneeName && assigneeName !== assignmentCode ? (
-                            <span className="text-sm font-medium text-primary">{assigneeName}</span>
-                          ) : null}
-                          {assigneePhone ? (
-                            <span className="text-xs text-tertiary">{assigneePhone}</span>
-                          ) : null}
-                          {deliveryLocation ? (
-                            <span className="text-xs text-tertiary">{deliveryLocation}</span>
-                          ) : null}
-                          {assignmentDate ? (
-                            <span className="text-xs text-tertiary">Ultimo mov. {assignmentDate}</span>
-                          ) : null}
                         </div>
                       </Table.Cell>
                       <Table.Cell>
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-0.5">
                           {getDistribuidoraBadge(item.distribuidora)}
-                          {shippingVoucher ? (
-                            <Badge size="sm" color="brand">
-                              Vale {shippingVoucher}
-                            </Badge>
-                          ) : (
-                            <span className="text-xs text-tertiary">Sin vale</span>
+                          {shippingVoucher && (
+                            <span className="text-xs text-secondary font-mono">{shippingVoucher}</span>
                           )}
-                          {expectsReturn ? (
-                            <Badge size="sm" color="warning">
-                              Espera devolucion
-                            </Badge>
-                          ) : null}
+                          {expectsReturn && (
+                            <Badge size="sm" color="warning">Espera devolucion</Badge>
+                          )}
                         </div>
                       </Table.Cell>
                       <Table.Cell className="hidden w-[140px] xl:table-cell">
@@ -904,12 +889,15 @@ const stateFilterOptions = useMemo(
                             Ver mas
                           </Button>
 
-                          {item.soti_info?.is_in_soti &&
-                           !isRecordAssigned(item) && (
+                          {!isRecordAssigned(item) && (
                             <ButtonUtility
                               size="xs"
                               color="secondary"
-                              tooltip="Asignar dispositivo"
+                              tooltip={
+                                item.soti_info?.is_in_soti
+                                  ? "Asignar dispositivo (con datos SOTI)"
+                                  : "Asignar dispositivo manualmente"
+                              }
                               icon={Send01}
                               onClick={() => {
                                 setSelectedDevice(item);
@@ -930,6 +918,58 @@ const stateFilterOptions = useMemo(
                               }}
                             />
                           )}
+
+                          {/* Botón para actualizar envío */}
+                          {(() => {
+                            const assignment = getLatestAssignment(item);
+                            const shippingStatus = (assignment as any)?.shipping_status;
+                            const shippingVoucherId = (assignment as any)?.shipping_voucher_id;
+
+                            // Mostrar si tiene vale y no está entregado aún
+                            if (shippingVoucherId && shippingStatus !== "delivered") {
+                              return (
+                                <ButtonUtility
+                                  size="xs"
+                                  color="secondary"
+                                  tooltip="Actualizar estado de envío"
+                                  icon={Truck01}
+                                  onClick={() => {
+                                    setSelectedDevice(item);
+                                    setIsUpdateShippingModalOpen(true);
+                                  }}
+                                />
+                              );
+                            }
+                            return null;
+                          })()}
+
+                          {/* Botón para registrar devolución */}
+                          {(() => {
+                            const assignment = getLatestAssignment(item);
+                            const returnStatus = (assignment as any)?.return_status;
+                            const shippingStatus = (assignment as any)?.shipping_status;
+                            const expectsReturn = (assignment as any)?.expects_return;
+
+                            // Mostrar solo si: entregado + espera devolución + no recibida aún
+                            if (shippingStatus === "delivered" && expectsReturn && returnStatus === "pending") {
+                              return (
+                                <ButtonUtility
+                                  size="xs"
+                                  color="secondary"
+                                  tooltip="Registrar devolución"
+                                  icon={CheckCircle}
+                                  onClick={() => {
+                                    const returnImei = (assignment as any)?.return_device_imei;
+                                    if (assignment && returnImei) {
+                                      setSelectedDevice(item);
+                                      setIsRegisterReturnModalOpen(true);
+                                    }
+                                  }}
+                                />
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </Table.Cell>
                     </Table.Row>
@@ -958,12 +998,13 @@ const stateFilterOptions = useMemo(
       <AssignDeviceModal
         open={isAssignModalOpen}
         onOpenChange={setIsAssignModalOpen}
-        deviceId={selectedDevice?.raw?.soti_device?.id || null}
-        deviceName={selectedDevice?.soti_info?.device_name || null}
+        deviceId={selectedDevice?.raw?.id || null}
+        deviceName={selectedDevice?.soti_info?.device_name || selectedDevice?.modelo || null}
         deviceInfo={{
           device_name: selectedDevice?.soti_info?.device_name,
           imei: selectedDevice?.imei,
           model: selectedDevice?.modelo,
+          soti_device_id: selectedDevice?.raw?.soti_device?.id || null,
         }}
         onSuccess={refresh}
       />
@@ -988,6 +1029,35 @@ const stateFilterOptions = useMemo(
           }
         }}
         device={deviceToEdit}
+        onSuccess={refresh}
+      />
+
+      <RegisterReturnModal
+        open={isRegisterReturnModalOpen}
+        onOpenChange={setIsRegisterReturnModalOpen}
+        assignmentInfo={{
+          id: (getLatestAssignment(selectedDevice!) as any)?.id || "",
+          assignee_name: (getLatestAssignment(selectedDevice!) as any)?.assignee_name || "",
+          return_device_imei: (getLatestAssignment(selectedDevice!) as any)?.return_device_imei || "",
+          at: (getLatestAssignment(selectedDevice!) as any)?.at || "",
+        }}
+        onSuccess={refresh}
+      />
+
+      <UpdateShippingModal
+        open={isUpdateShippingModalOpen}
+        onOpenChange={setIsUpdateShippingModalOpen}
+        assignmentInfo={{
+          id: (getLatestAssignment(selectedDevice!) as any)?.id || "",
+          assignee_name: (getLatestAssignment(selectedDevice!) as any)?.assignee_name || "",
+          shipping_voucher_id: (getLatestAssignment(selectedDevice!) as any)?.shipping_voucher_id || null,
+          shipping_status: (getLatestAssignment(selectedDevice!) as any)?.shipping_status || null,
+          shipped_at: (getLatestAssignment(selectedDevice!) as any)?.shipped_at || null,
+          delivered_at: (getLatestAssignment(selectedDevice!) as any)?.delivered_at || null,
+          expects_return: (getLatestAssignment(selectedDevice!) as any)?.expects_return || false,
+          return_status: (getLatestAssignment(selectedDevice!) as any)?.return_status || null,
+          return_device_imei: (getLatestAssignment(selectedDevice!) as any)?.return_device_imei || null,
+        }}
         onSuccess={refresh}
       />
     </div>

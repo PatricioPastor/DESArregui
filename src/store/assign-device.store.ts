@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 
 interface AssignmentFormData {
+  assignment_type: "new" | "replacement";
   assignee_name: string;
   assignee_phone: string;
+  assignee_email: string;
   distributor_id: string;
   delivery_location: string;
   contact_details: string;
@@ -53,8 +55,10 @@ interface AssignDeviceStore {
 }
 
 const initialFormData: AssignmentFormData = {
+  assignment_type: 'new',
   assignee_name: '',
   assignee_phone: '',
+  assignee_email: '',
   distributor_id: '',
   delivery_location: '',
   contact_details: '',
@@ -79,20 +83,23 @@ export const useAssignDeviceStore = create<AssignDeviceStore>((set, get) => ({
   
   nextStep: () => {
     const { currentStep, formData } = get();
-    
-    // Validar paso actual antes de avanzar
-    if (currentStep === 1) {
-      // Validar campos obligatorios del paso 1
-      if (!formData.assignee_name.trim() || 
-          !formData.assignee_phone.trim() || 
-          !formData.distributor_id || 
+
+    // Calcular el total de pasos dinámicamente
+    const totalSteps = formData.assignment_type === "replacement" ? 4 : 3;
+
+    // No validar en pasos 1 y 2 (tienen valores por defecto)
+    // Validar solo en paso 3 (información de contacto)
+    if (currentStep === 3) {
+      if (!formData.assignee_name.trim() ||
+          !formData.assignee_phone.trim() ||
+          !formData.distributor_id ||
           !formData.delivery_location.trim()) {
         set({ error: 'Por favor complete todos los campos obligatorios' });
         return;
       }
     }
-    
-    if (currentStep < 3) {
+
+    if (currentStep < totalSteps) {
       set({ currentStep: currentStep + 1, error: null });
     }
   },
@@ -175,14 +182,25 @@ export const useAssignDeviceStore = create<AssignDeviceStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
+      const { deviceInfo } = get();
+
       const response = await fetch('/api/assignments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          soti_device_id: deviceId,
-          ...formData,
+          device_id: deviceId,
+          soti_device_id: deviceInfo?.soti_device_id || null,
+          assignment_type: formData.assignment_type,
+          assignee_name: formData.assignee_name,
+          assignee_phone: formData.assignee_phone,
+          assignee_email: formData.assignee_email || null,
+          distributor_id: formData.distributor_id,
+          delivery_location: formData.delivery_location,
+          contact_details: formData.contact_details,
+          generate_voucher: formData.generate_voucher,
+          expects_return: formData.expects_return,
           return_device_imei: formData.expects_return ? formData.return_device_imei : null,
         }),
       });

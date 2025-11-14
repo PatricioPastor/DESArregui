@@ -71,6 +71,16 @@ export function AssignmentInfoStep() {
           hint="Si no tiene el del asignatario, puede ser el de quien reporta"
         />
 
+        <Input
+          id="assignee_email"
+          label="Email (Opcional)"
+          placeholder="correo@ejemplo.com"
+          type="email"
+          value={formData.assignee_email}
+          onChange={(val) => setFormData({ assignee_email: val })}
+          hint="Para notificaciones de envío y recordatorios de devolución"
+        />
+
         <Select
           isRequired
           label="Distribuidora"

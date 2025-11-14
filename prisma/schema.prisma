@@ -147,11 +147,15 @@ model assignment {
   type                assignment_type
   assignee_name       String?
   assignee_phone      String?
+  assignee_email      String?
   contact_details     String?
   delivery_location   String?
   distributor_id      String?
   expects_return      Boolean         @default(false)
   return_device_imei  String?
+  return_status       String?
+  return_received_at  DateTime?
+  return_notes        String?
   shipping_voucher_id String?         @unique
   soti_device_id      String?
   status              String          @default("active")
@@ -169,6 +173,7 @@ model assignment {
   @@index([soti_device_id])
   @@index([distributor_id])
   @@index([status])
+  @@index([return_status])
   @@map("assignment")
   @@schema("phones")
 }
@@ -294,6 +299,7 @@ enum device_status {
 enum assignment_type {
   ASSIGN
   UNASSIGN
+  REPLACE
 
   @@schema("support")
 }
