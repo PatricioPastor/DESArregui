@@ -141,6 +141,46 @@ export async function PUT(request: Request, context: { params: Promise<RoutePara
       }
     }
 
+    // Handle backup fields
+    if (body.is_backup !== undefined) {
+      updateData.is_backup = Boolean(body.is_backup);
+    }
+
+    if (body.backup_distributor_id !== undefined) {
+      if (body.backup_distributor_id && typeof body.backup_distributor_id === "string") {
+        const backupDistributorRecord = await prisma.distributor.findUnique({
+          where: { id: body.backup_distributor_id },
+        });
+
+        if (!backupDistributorRecord) {
+          return NextResponse.json(
+            { success: false, error: `Distribuidora de backup "${body.backup_distributor_id}" no encontrada` },
+            { status: 404 },
+          );
+        }
+
+        // Validate that backup distributor is not DEPOSITO
+        if (backupDistributorRecord.name.toUpperCase() === 'DEPOSITO') {
+          return NextResponse.json(
+            { success: false, error: 'DEPOSITO no puede ser una distribuidora de backup' },
+            { status: 400 },
+          );
+        }
+
+        updateData.backup_distributor_id = backupDistributorRecord.id;
+      } else {
+        updateData.backup_distributor_id = null;
+      }
+    }
+
+    // Validate: if is_backup is true, backup_distributor_id is required
+    if (updateData.is_backup === true && !updateData.backup_distributor_id) {
+      return NextResponse.json(
+        { success: false, error: 'Distribuidora de backup es requerida cuando el dispositivo es de backup' },
+        { status: 400 },
+      );
+    }
+
     if (body.status !== undefined || body.estado !== undefined) {
       const statusValue = normalizeStatusValue(body.status ?? body.estado);
       if (!statusValue) {

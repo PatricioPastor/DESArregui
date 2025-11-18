@@ -100,6 +100,8 @@ interface StockFilters {
     distributorId?: string | null;
     assigned?: boolean | null;
     includeDeleted?: boolean;
+    backup?: string | null; // "true" | "false" | null
+    backup_distributor?: string | null;
 }
 
 export function useFilteredStockData(searchQuery: string = "", filters?: StockFilters) {
@@ -135,6 +137,12 @@ export function useFilteredStockData(searchQuery: string = "", filters?: StockFi
             }
             if (typeof currentFilters.includeDeleted === "boolean") {
                 url.searchParams.set("include_deleted", String(currentFilters.includeDeleted));
+            }
+            if (currentFilters.backup) {
+                url.searchParams.set("backup", currentFilters.backup);
+            }
+            if (currentFilters.backup_distributor) {
+                url.searchParams.set("backup_distributor", currentFilters.backup_distributor);
             }
 
             const response = await fetch(url.toString(), {

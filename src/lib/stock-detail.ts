@@ -44,6 +44,12 @@ const DEVICE_INCLUDE = {
       name: true,
     },
   },
+  backup_distributor: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
   purchase: {
     select: {
       id: true,
@@ -113,6 +119,12 @@ const buildInventoryRecord = (device: any, sotiDevice: any): InventoryRecord => 
     },
     distribuidora: device!.distributor?.name || "",
     distribuidora_id: device!.distributor?.id || null,
+    is_backup: device!.is_backup || false,
+    backup_distributor_id: device!.backup_distributor_id || null,
+    backup_distributor: device!.backup_distributor ? {
+      id: device!.backup_distributor.id,
+      name: device!.backup_distributor.name,
+    } : null,
     asignado_a: device!.assigned_to || "",
     ticket: device!.ticket_id || "",
     is_assigned:
@@ -153,8 +165,13 @@ export interface AssignmentDetail {
   delivery_location: string | null;
   contact_details: string | null;
   shipping_voucher_id: string | null;
+  shipping_status: string | null;
+  shipped_at: string | null;
+  delivered_at: string | null;
   expects_return: boolean;
   return_device_imei: string | null;
+  return_status: string | null;
+  return_received_at: string | null;
   ticket_id: string | null;
   at: string;
   soti_device: {
@@ -232,8 +249,13 @@ export async function getDeviceDetailByImei(imei: string): Promise<DeviceDetail 
     delivery_location: assignment.delivery_location || null,
     contact_details: assignment.contact_details || null,
     shipping_voucher_id: assignment.shipping_voucher_id || null,
+    shipping_status: assignment.shipping_status || null,
+    shipped_at: assignment.shipped_at?.toISOString() || null,
+    delivered_at: assignment.delivered_at?.toISOString() || null,
     expects_return: assignment.expects_return,
     return_device_imei: assignment.return_device_imei || null,
+    return_status: assignment.return_status || null,
+    return_received_at: assignment.return_received_at?.toISOString() || null,
     ticket_id: assignment.ticket_id || null,
     at: assignment.at.toISOString(),
     soti_device: assignment.soti_device

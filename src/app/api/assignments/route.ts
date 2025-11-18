@@ -121,6 +121,7 @@ export async function POST(request: NextRequest) {
           },
         },
         model: true,
+        backup_distributor: true,
       },
     });
 
@@ -168,13 +169,23 @@ export async function POST(request: NextRequest) {
 
     // Iniciar transacción para crear la asignación y actualizar el dispositivo
     const result = await prisma.$transaction(async (tx) => {
-      // Generar ID de vale de envío si es necesario
-      const shippingVoucherId = data.generate_voucher
+      // Detectar si el dispositivo es backup y está en la misma distribuidora
+      const isBackupInSameLocation = device.is_backup && 
+                                     device.backup_distributor_id === data.distributor_id;
+
+      // Si es backup en la misma ubicación, saltar proceso de envío
+      const shouldSkipShipping = isBackupInSameLocation;
+      
+      // Generar ID de vale de envío solo si NO es backup en la misma ubicación y se solicita
+      const shippingVoucherId = !shouldSkipShipping && data.generate_voucher
         ? generateShippingVoucherId()
         : null;
 
       // Determinar shipping_status inicial
-      const initialShippingStatus = data.generate_voucher ? "pending" : null;
+      // Si es backup en la misma ubicación, marcar como entregado directamente
+      const initialShippingStatus = shouldSkipShipping 
+        ? "delivered" 
+        : (data.generate_voucher ? "pending" : null);
 
       // Crear la asignación
       const assignment = await tx.assignment.create({
@@ -189,6 +200,7 @@ export async function POST(request: NextRequest) {
           contact_details: data.contact_details || null,
           shipping_voucher_id: shippingVoucherId,
           shipping_status: initialShippingStatus,
+          delivered_at: shouldSkipShipping ? new Date() : null,
           expects_return: data.expects_return,
           return_device_imei: data.return_device_imei || null,
           return_status: null,
@@ -218,11 +230,14 @@ export async function POST(request: NextRequest) {
       }
 
       // Actualizar el estado del dispositivo en la tabla device
+      // Limpiar campos de backup al asignar
       await tx.device.update({
         where: { id: device.id },
         data: {
           status: device_status.ASSIGNED,
           assigned_to: data.assignee_name,
+          is_backup: false,
+          backup_distributor_id: null,
         },
       });
 

@@ -1,8 +1,9 @@
 ﻿"use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useMemo, useEffect } from "react";
-import { ArrowCircleRight, Box, CheckCircle, Database01, FilterLines, Plus, SearchLg, Send01, UploadCloud02, Eye, X, Edit01, Truck01 } from "@untitledui/icons";
+import { ArrowCircleRight, Box, Database01, FilterLines, Plus, SearchLg, Send01, UploadCloud02, Eye, X, Edit01 } from "@untitledui/icons";
 import type { SortDescriptor } from "react-aria-components";
 import { PaginationCardMinimal } from "@/components/application/pagination/pagination";
 import { Table, TableCard, TableRowActionsDropdown } from "@/components/application/table/table";
@@ -15,11 +16,11 @@ import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-ic
 import { Select } from "@/components/base/select/select";
 import { useFilteredStockData } from "@/hooks/use-stock-data";
 import { CreateStockModal } from "@/features/stock/components/create/create-stock-modal";
-import { AssignDeviceModal } from "@/features/stock/components/assign";
 import { ViewAssignmentModal } from "@/features/stock/components/view-assignment";
 import { EditStockModal } from "@/features/stock/components/edit/edit-stock-modal";
 import { RegisterReturnModal } from "@/features/stock/components/register-return";
-import { UpdateShippingModal } from "@/features/stock/components/update-shipping";
+import { EditShippingModal } from "@/features/stock/components/edit-shipping";
+import { ShippingActions } from "@/components/shipping/shipping-actions";
 import type { InventoryRecord } from "@/lib/types";
 import { toast } from "sonner";
 import { DEVICE_STATUS_OPTIONS } from "@/constants/device-status";
@@ -179,12 +180,12 @@ export function StockTable() {
     column: "modelo",
     direction: "ascending",
   });
+  const router = useRouter();
   const [activeView, setActiveView] = useState<StockView>("overview");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isViewAssignmentModalOpen, setIsViewAssignmentModalOpen] = useState(false);
   const [isRegisterReturnModalOpen, setIsRegisterReturnModalOpen] = useState(false);
   const [isUpdateShippingModalOpen, setIsUpdateShippingModalOpen] = useState(false);
@@ -196,10 +197,26 @@ export function StockTable() {
   const [distributorFilter, setDistributorFilter] = useState<string>("all");
   const [statusDbFilter, setStatusDbFilter] = useState<string>("all");
   const [modelFilter, setModelFilter] = useState<string>("all");
+  const [backupFilter, setBackupFilter] = useState<string>("all");
+  const [backupDistributorFilter, setBackupDistributorFilter] = useState<string>("all");
 
   const serverFilters = useMemo(
-    () => (modelFilter !== "all" ? { modelId: modelFilter } : undefined),
-    [modelFilter],
+    () => {
+      const filters: any = {};
+      if (modelFilter !== "all") {
+        filters.modelId = modelFilter;
+      }
+      if (backupFilter === "true") {
+        filters.backup = "true";
+      } else if (backupFilter === "false") {
+        filters.backup = "false";
+      }
+      if (backupDistributorFilter !== "all") {
+        filters.backup_distributor = backupDistributorFilter;
+      }
+      return Object.keys(filters).length > 0 ? filters : undefined;
+    },
+    [modelFilter, backupFilter, backupDistributorFilter],
   );
 
   const { data, isLoading, error, lastUpdated, refresh, modelOptions } = useFilteredStockData(
@@ -299,6 +316,34 @@ const stateFilterOptions = useMemo(
     ];
   }, [modelOptions]);
 
+  const backupFilterOptions = useMemo(
+    () => [
+      { id: "all", label: "Todos" },
+      { id: "true", label: "Solo backup" },
+      { id: "false", label: "Excluir backup" },
+    ],
+    []
+  );
+
+  const backupDistributorOptions = useMemo(() => {
+    const names = new Set<string>();
+
+    data.forEach((record) => {
+      if (record.is_backup && record.backup_distributor?.name) {
+        names.add(record.backup_distributor.name);
+      }
+    });
+
+    const sortedNames = Array.from(names).sort((a, b) =>
+      a.localeCompare(b, "es", { sensitivity: "base" })
+    );
+
+    return [
+      { id: "all", label: "Todas las distribuidoras de backup" },
+      ...sortedNames.map((name) => ({ id: name, label: name })),
+    ];
+  }, [data]);
+
   const distributorOptions = useMemo(() => {
     const names = new Set<string>();
 
@@ -321,7 +366,9 @@ const stateFilterOptions = useMemo(
     stateFilter !== "all" ||
     distributorFilter !== "all" ||
     statusDbFilter !== "all" ||
-    modelFilter !== "all";
+    modelFilter !== "all" ||
+    backupFilter !== "all" ||
+    backupDistributorFilter !== "all";
 
   useEffect(() => {
     if (modelFilter !== "all" && !modelSelectOptions.some((option) => option.id === modelFilter)) {
@@ -331,7 +378,7 @@ const stateFilterOptions = useMemo(
 
   useEffect(() => {
     setPage(1);
-  }, [stateFilter, distributorFilter, statusDbFilter, activeView, modelFilter]);
+  }, [stateFilter, distributorFilter, statusDbFilter, activeView, modelFilter, backupFilter, backupDistributorFilter]);
 
   const filteredWithFilters = useMemo(() => {
     return filteredData.filter((record) => {
@@ -367,6 +414,8 @@ const stateFilterOptions = useMemo(
     setDistributorFilter("all");
     setStatusDbFilter("all");
     setModelFilter("all");
+    setBackupFilter("all");
+    setBackupDistributorFilter("all");
   };
 
   // Sort data
@@ -689,7 +738,9 @@ const stateFilterOptions = useMemo(
                     {(stateFilter !== "all" ? 1 : 0) +
                       (distributorFilter !== "all" ? 1 : 0) +
                       (statusDbFilter !== "all" ? 1 : 0) +
-                      (modelFilter !== "all" ? 1 : 0)}
+                      (modelFilter !== "all" ? 1 : 0) +
+                      (backupFilter !== "all" ? 1 : 0) +
+                      (backupDistributorFilter !== "all" ? 1 : 0)}
                   </Badge>
                 )}
               </Button>
@@ -762,6 +813,34 @@ const stateFilterOptions = useMemo(
                     </Select.Item>
                   )}
                 </Select>
+
+                <Select
+                  label="Backup"
+                  selectedKey={backupFilter}
+                  onSelectionChange={(key) => setBackupFilter(key as string)}
+                  items={backupFilterOptions as any}
+                >
+                  {(item) => (
+                    <Select.Item id={item.id}>
+                      {item.label}
+                    </Select.Item>
+                  )}
+                </Select>
+
+                {backupFilter === "true" && (
+                  <Select
+                    label="Distribuidora de backup"
+                    selectedKey={backupDistributorFilter}
+                    onSelectionChange={(key) => setBackupDistributorFilter(key as string)}
+                    items={backupDistributorOptions}
+                  >
+                    {(item) => (
+                      <Select.Item id={item.id}>
+                        {item.label}
+                      </Select.Item>
+                    )}
+                  </Select>
+                )}
               </div>
             </div>
           )}
@@ -837,6 +916,11 @@ const stateFilterOptions = useMemo(
                       </Table.Cell>
                       <Table.Cell>
                         <div className="flex flex-col gap-0.5">
+                          {item.is_backup && item.backup_distributor && (
+                            <Badge size="sm" color="success" className="mb-1">
+                              Backup: {item.backup_distributor.name}
+                            </Badge>
+                          )}
                           {getDistribuidoraBadge(item.distribuidora)}
                           {shippingVoucher && (
                             <span className="text-xs text-secondary font-mono">{shippingVoucher}</span>
@@ -900,8 +984,7 @@ const stateFilterOptions = useMemo(
                               }
                               icon={Send01}
                               onClick={() => {
-                                setSelectedDevice(item);
-                                setIsAssignModalOpen(true);
+                                router.push(`/stock/assign/${item.imei}`);
                               }}
                             />
                           )}
@@ -919,57 +1002,16 @@ const stateFilterOptions = useMemo(
                             />
                           )}
 
-                          {/* Botón para actualizar envío */}
-                          {(() => {
-                            const assignment = getLatestAssignment(item);
-                            const shippingStatus = (assignment as any)?.shipping_status;
-                            const shippingVoucherId = (assignment as any)?.shipping_voucher_id;
-
-                            // Mostrar si tiene vale y no está entregado aún
-                            if (shippingVoucherId && shippingStatus !== "delivered") {
-                              return (
-                                <ButtonUtility
-                                  size="xs"
-                                  color="secondary"
-                                  tooltip="Actualizar estado de envío"
-                                  icon={Truck01}
-                                  onClick={() => {
-                                    setSelectedDevice(item);
-                                    setIsUpdateShippingModalOpen(true);
-                                  }}
-                                />
-                              );
-                            }
-                            return null;
-                          })()}
-
-                          {/* Botón para registrar devolución */}
-                          {(() => {
-                            const assignment = getLatestAssignment(item);
-                            const returnStatus = (assignment as any)?.return_status;
-                            const shippingStatus = (assignment as any)?.shipping_status;
-                            const expectsReturn = (assignment as any)?.expects_return;
-
-                            // Mostrar solo si: entregado + espera devolución + no recibida aún
-                            if (shippingStatus === "delivered" && expectsReturn && returnStatus === "pending") {
-                              return (
-                                <ButtonUtility
-                                  size="xs"
-                                  color="secondary"
-                                  tooltip="Registrar devolución"
-                                  icon={CheckCircle}
-                                  onClick={() => {
-                                    const returnImei = (assignment as any)?.return_device_imei;
-                                    if (assignment && returnImei) {
-                                      setSelectedDevice(item);
-                                      setIsRegisterReturnModalOpen(true);
-                                    }
-                                  }}
-                                />
-                              );
-                            }
-                            return null;
-                          })()}
+                          <ShippingActions
+                            assignment={getLatestAssignment(item) as any}
+                            onEdit={() => {
+                              setSelectedDevice(item);
+                              setIsUpdateShippingModalOpen(true);
+                            }}
+                            onSuccess={refresh}
+                            size="xs"
+                            variant="utility"
+                          />
                         </div>
                       </Table.Cell>
                     </Table.Row>
@@ -995,24 +1037,11 @@ const stateFilterOptions = useMemo(
         onSuccess={refresh}
       />
       
-      <AssignDeviceModal
-        open={isAssignModalOpen}
-        onOpenChange={setIsAssignModalOpen}
-        deviceId={selectedDevice?.raw?.id || null}
-        deviceName={selectedDevice?.soti_info?.device_name || selectedDevice?.modelo || null}
-        deviceInfo={{
-          device_name: selectedDevice?.soti_info?.device_name,
-          imei: selectedDevice?.imei,
-          model: selectedDevice?.modelo,
-          soti_device_id: selectedDevice?.raw?.soti_device?.id || null,
-        }}
-        onSuccess={refresh}
-      />
-      
       <ViewAssignmentModal
         open={isViewAssignmentModalOpen}
         onOpenChange={setIsViewAssignmentModalOpen}
         deviceId={selectedDevice?.raw?.soti_device?.id || null}
+        imei={selectedDevice?.imei || null}
         deviceInfo={{
           device_name: selectedDevice?.soti_info?.device_name,
           imei: selectedDevice?.imei,
@@ -1044,7 +1073,7 @@ const stateFilterOptions = useMemo(
         onSuccess={refresh}
       />
 
-      <UpdateShippingModal
+      <EditShippingModal
         open={isUpdateShippingModalOpen}
         onOpenChange={setIsUpdateShippingModalOpen}
         assignmentInfo={{

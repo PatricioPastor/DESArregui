@@ -1,30 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ModalOverlay, Modal, Dialog } from "@/components/application/modals/modal";
+import { BaseModal } from "@/components/modals/base-modal";
 import { Button } from "@/components/base/buttons/button";
-import { Tabs } from "@/components/application/tabs/tabs";
 import { useCreateStockStore } from "@/store/create-stock.store";
 import { useShallow } from "zustand/react/shallow";
 import { IndividualTab } from "./individual-tab";
-
-import { ButtonUtility } from "@/components/base/buttons/button-utility";
-import { X } from "@untitledui/icons";
 import { toast } from "sonner";
 
 interface CreateStockModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
-
 }
-
-const tabs = [
-    { id: "details", label: "My details" },
-    { id: "profile", label: "Profile" },
-    
-    
-];
 
 export function CreateStockModal({ open, onOpenChange, onSuccess }: CreateStockModalProps) {
   const hasInitialized = useRef(false);
@@ -148,67 +136,26 @@ export function CreateStockModal({ open, onOpenChange, onSuccess }: CreateStockM
   };
 
   return (
-    <ModalOverlay isOpen={open} onOpenChange={onOpenChange}>
-      <Modal>
-        <Dialog className="bg-primary rounded-lg shadow-xl max-w-2xl w-full flex flex-col mx-auto">
-          <div className="flex items-center w-full justify-between px-6 py-4 border-b border-secondary">
-            <h2 className="text-lg font-semibold text-primary">Agregar Stock</h2>
-            <ButtonUtility
-              onClick={handleClose}
-              className="p-2 text-secondary hover:text-primary"
-              icon={X}
-              size="xs"
-            >
-              
-            </ButtonUtility>
-          </div>
-
-          <div className="px-6 py-4">
-           
-              <div className="space-y-6">
-                {/* <Tabs
-                  selectedKey={activeStep || 'individual'}
-                  onSelectionChange={(key) => setActiveStep(key as 'individual' | 'bulk')}
-                >
-                  <Tabs.List type="button-minimal" items={tabs}>
-                    {(tab) => <Tabs.Item {...tab} />}
-                  </Tabs.List>
-                </Tabs> */}
-                  
-                  <h4>Información general del teléfono</h4>
-
-                  <div className="mt-6">
-                    {/* <Tabs.Panel id="individual"> */}
-                      <IndividualTab />
-                    {/* </Tabs.Panel> */}
-{/* 
-                    <Tabs.Panel id="bulk">
-                      <BulkTab />
-                    </Tabs.Panel> */}
-                  </div>
-                
-                </div>
-              
-            
-          </div>
-
-          <div className="flex justify-end gap-3 px-6 py-4 border-t border-surface w-full">
-            
-              
-                <Button color="secondary" onClick={handleClose} disabled={isLoading}>
-                  Cancelar
-                </Button>
-                <Button
-                  color="primary"
-                  onClick={handleSubmit}
-                  disabled={!canSubmit() || isLoading}
-                >
-                  {getSubmitButtonText()}
-                </Button>
-            
-          </div>
-        </Dialog>
-      </Modal>
-    </ModalOverlay>
+    <BaseModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Agregar Stock"
+      size="md"
+      footer={
+        <div className="flex justify-end gap-3 w-full">
+          <Button color="secondary" onClick={handleClose} disabled={isLoading}>
+            Cancelar
+          </Button>
+          <Button color="primary" onClick={handleSubmit} disabled={!canSubmit() || isLoading}>
+            {getSubmitButtonText()}
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <h4 className="text-sm font-semibold text-primary">Información general del teléfono</h4>
+        <IndividualTab />
+      </div>
+    </BaseModal>
   );
 }

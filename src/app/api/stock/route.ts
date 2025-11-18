@@ -69,6 +69,12 @@ const DEVICE_INCLUDE = {
       name: true,
     },
   },
+  backup_distributor: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
   assignments: {
     orderBy: { at: 'desc' as const },
     select: {
@@ -154,6 +160,12 @@ const buildInventoryRecord = (device: DeviceWithRelations, sotiDevice?: any): In
     estado: STATUS_LABELS[inventoryStatus],
     modelo: modelDisplay,
     model_id: device.model_id,
+    is_backup: device.is_backup || false,
+    backup_distributor_id: device.backup_distributor_id || null,
+    backup_distributor: device.backup_distributor ? {
+      id: device.backup_distributor.id,
+      name: device.backup_distributor.name,
+    } : null,
     model_details: {
       id: device.model.id,
       brand: device.model.brand,
@@ -209,6 +221,8 @@ export async function GET(request: NextRequest) {
     const assigned = searchParams.get('assigned');
     const modelId = searchParams.get('model');
     const includeDeleted = searchParams.get('include_deleted') === 'true';
+    const backup = searchParams.get('backup');
+    const backupDistributor = searchParams.get('backup_distributor');
 
     // Build where conditions
     const whereConditions: any = {};
@@ -227,6 +241,7 @@ export async function GET(request: NextRequest) {
         { model: { brand: { contains: search, mode: 'insensitive' } } },
         { model: { model: { contains: search, mode: 'insensitive' } } },
         { distributor: { name: { contains: search, mode: 'insensitive' } } },
+        { backup_distributor: { name: { contains: search, mode: 'insensitive' } } },
       ];
     }
 
@@ -238,6 +253,18 @@ export async function GET(request: NextRequest) {
     // Filter by distributor
     if (distributor) {
       whereConditions.distributor_id = distributor;
+    }
+
+    // Filter by backup status
+    if (backup === 'true') {
+      whereConditions.is_backup = true;
+    } else if (backup === 'false') {
+      whereConditions.is_backup = false;
+    }
+
+    // Filter by backup distributor
+    if (backupDistributor) {
+      whereConditions.backup_distributor_id = backupDistributor;
     }
 
     // Filter by model
@@ -446,6 +473,8 @@ export async function POST(request: NextRequest) {
         status,
         assigned_to: asignado_a?.trim() || null,
         ticket_id: ticket?.trim() || null,
+        is_backup: Boolean(is_backup),
+        backup_distributor_id: backup_distributor_id || null,
       },
       include: DEVICE_INCLUDE,
     });

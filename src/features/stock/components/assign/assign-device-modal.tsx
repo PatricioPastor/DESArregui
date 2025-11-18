@@ -1,16 +1,15 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ModalOverlay, Modal, Dialog } from "@/components/application/modals/modal";
+import { BaseModal } from "@/components/modals/base-modal";
 import { Button } from "@/components/base/buttons/button";
-import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { useAssignDeviceStore } from "@/store/assign-device.store";
 import { useShallow } from "zustand/react/shallow";
 import { AssignmentTypeStep } from "./steps/assignment-type-step";
 import { TransportStep } from "./steps/transport-step";
 import { AssignmentInfoStep } from "./steps/assignment-info-step";
 import { ReturnStep } from "./steps/return-step";
-import { X, ChevronLeft, ChevronRight, Check } from "@untitledui/icons";
+import { ChevronLeft, ChevronRight, Check } from "@untitledui/icons";
 import { toast } from "sonner";
 
 interface AssignDeviceModalProps {
@@ -193,93 +192,75 @@ export function AssignDeviceModal({
   };
 
   return (
-    <ModalOverlay isOpen={open} onOpenChange={onOpenChange}>
-      <Modal>
-        <Dialog className="bg-primary rounded-lg shadow-xl max-w-4xl w-full flex flex-col mx-auto max-h-[90vh]">
-          {/* Header */}
-          <div className="flex items-center w-full justify-between px-6 py-4 border-b border-secondary">
-            <div>
-              <h2 className="text-lg font-semibold text-primary">{getStepTitle()}</h2>
-              <p className="text-sm text-secondary mt-1">Paso {currentStep} de {getTotalSteps()}</p>
-            </div>
-            <ButtonUtility
-              onClick={handleClose}
-              className="p-2 text-secondary hover:text-primary"
-              icon={X}
-              size="xs"
-            />
-          </div>
-
-          {/* Progress bar */}
-          <div className="px-6 py-3 border-b border-secondary">
-            <div className="flex gap-2">
-              {Array.from({ length: getTotalSteps() }, (_, i) => i + 1).map((step) => (
-                <div
-                  key={step}
-                  className={cx(
-                    "flex-1 h-2 rounded-full transition-colors",
-                    step <= currentStep ? "bg-primary" : "bg-gray-700"
-                  )}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="px-6 py-6 flex-1 overflow-y-auto">
-            {renderStep()}
-          </div>
-
-          {/* Footer */}
-          <div className="flex justify-between gap-3 px-6 py-4 border-t border-surface w-full">
-            <div>
-              {currentStep > 1 && (
-                <Button
-                  color="secondary"
-                  onClick={handlePrevious}
-                  disabled={isLoading}
-                  iconLeading={ChevronLeft}
-                >
-                  Anterior
-                </Button>
-              )}
-            </div>
-
-            <div className="flex gap-3">
+    <BaseModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={getStepTitle()}
+      subtitle={`Paso ${currentStep} de ${getTotalSteps()}`}
+      size="lg"
+      footer={
+        <div className="flex justify-between gap-3 w-full">
+          <div>
+            {currentStep > 1 && (
               <Button
                 color="secondary"
-                onClick={handleClose}
+                onClick={handlePrevious}
                 disabled={isLoading}
+                iconLeading={ChevronLeft}
               >
-                Cancelar
+                Anterior
               </Button>
-
-              {!isLastStep() && (
-                <Button
-                  color="primary"
-                  onClick={handleNext}
-                  disabled={!canProceed() || isLoading}
-                  iconTrailing={ChevronRight}
-                >
-                  Siguiente
-                </Button>
-              )}
-
-              {isLastStep() && (
-                <Button
-                  color="primary"
-                  onClick={handleSubmit}
-                  disabled={!canProceed() || isLoading}
-                  iconLeading={Check}
-                >
-                  {isLoading ? 'Asignando...' : 'Confirmar Asignación'}
-                </Button>
-              )}
-            </div>
+            )}
           </div>
-        </Dialog>
-      </Modal>
-    </ModalOverlay>
+
+          <div className="flex gap-3">
+            <Button color="secondary" onClick={handleClose} disabled={isLoading}>
+              Cancelar
+            </Button>
+
+            {!isLastStep() && (
+              <Button
+                color="primary"
+                onClick={handleNext}
+                disabled={!canProceed() || isLoading}
+                iconTrailing={ChevronRight}
+              >
+                Siguiente
+              </Button>
+            )}
+
+            {isLastStep() && (
+              <Button
+                color="primary"
+                onClick={handleSubmit}
+                disabled={!canProceed() || isLoading}
+                iconLeading={Check}
+              >
+                {isLoading ? "Asignando..." : "Confirmar Asignación"}
+              </Button>
+            )}
+          </div>
+        </div>
+      }
+    >
+      {/* Progress bar */}
+      <div className="mb-4 pb-3 border-b border-surface">
+        <div className="flex gap-2">
+          {Array.from({ length: getTotalSteps() }, (_, i) => i + 1).map((step) => (
+            <div
+              key={step}
+              className={cx(
+                "flex-1 h-1.5 rounded-full transition-colors",
+                step <= currentStep ? "bg-primary" : "bg-gray-700"
+              )}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Step Content */}
+      {renderStep()}
+    </BaseModal>
   );
 }
 

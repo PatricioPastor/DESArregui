@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Input } from "@/components/base/input/input";
 import { Select } from "@/components/base/select/select";
+import { Checkbox } from "@/components/base/checkbox/checkbox";
 import { useCreateStockStore } from "@/store/create-stock.store";
 import { DEVICE_STATUS_OPTIONS } from "@/constants/device-status";
 import { InfoCircle } from "@untitledui/icons";
@@ -30,6 +31,13 @@ export function IndividualTab() {
   useEffect(() => {
     fetchAllOptions();
   }, [fetchAllOptions]);
+
+  // Filter distributors to exclude DEPOSITO for backup selector
+  const backupDistributorOptions = useMemo(() => {
+    return distributorOptions.filter(
+      (dist) => dist.name?.toUpperCase() !== 'DEPOSITO'
+    );
+  }, [distributorOptions]);
 
   return (
     <div className="flex flex-col space-y-6">
@@ -126,6 +134,47 @@ export function IndividualTab() {
           value={individualData.purchase_id}
           onChange={(val) => setIndividualData({ purchase_id: val })}
         />
+      </div>
+
+      {/* Backup Section */}
+      <div className="border-t border-gray-700 pt-6">
+        <div className="flex flex-col space-y-4">
+          <Checkbox
+            checked={individualData.is_backup || false}
+            onChange={(checked) => {
+              setIndividualData({ 
+                is_backup: checked,
+                backup_distributor_id: checked ? undefined : undefined
+              });
+            }}
+            label="Es dispositivo de backup"
+            description="Marca si este dispositivo está físicamente en una distribuidora como stock de respaldo"
+          />
+
+          {individualData.is_backup && (
+            <Select
+              isRequired
+              label="Distribuidora de backup"
+              placeholder="Seleccione la distribuidora donde está físicamente"
+              selectedKey={individualData.backup_distributor_id}
+              onSelectionChange={(val) => setIndividualData({ backup_distributor_id: val as string })}
+              items={backupDistributorOptions as any}
+              isDisabled={isLoadingOptions}
+            >
+              {(item) => (
+                <Select.Item
+                  id={item.id}
+                  supportingText={item.supportingText}
+                  isDisabled={item.isDisabled}
+                  icon={item.icon}
+                  avatarUrl={item.avatarUrl}
+                >
+                  {item.label}
+                </Select.Item>
+              )}
+            </Select>
+          )}
+        </div>
       </div>
 
       {/* Info Box */}

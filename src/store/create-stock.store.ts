@@ -18,6 +18,8 @@ interface IndividualStockData {
   ticket?: string;
   status: string;
   purchase_id?: string;
+  is_backup?: boolean;
+  backup_distributor_id?: string;
 }
 
 interface BulkStockData {
@@ -28,6 +30,8 @@ interface BulkStockData {
   ticket?: string;
   status: string;
   purchase_id?: string;
+  is_backup?: boolean;
+  backup_distributor_id?: string;
 }
 
 interface CreateStockState {
@@ -148,6 +152,14 @@ export const useCreateStockStore = create<CreateStockState>()(
               };
             }
 
+            // Validate backup fields
+            if (state.individualData.is_backup && !state.individualData.backup_distributor_id) {
+              return {
+                success: false,
+                message: 'Debe seleccionar una distribuidora de backup cuando el dispositivo es de backup'
+              };
+            }
+
             const deviceData = {
               imei: state.individualData.imei.trim(),
               modelo: state.individualData.modelo,
@@ -156,6 +168,8 @@ export const useCreateStockStore = create<CreateStockState>()(
               ticket: state.individualData.ticket?.trim() || undefined,
               status: state.individualData.status || 'NEW',
               purchase_id: state.individualData.purchase_id?.trim() || undefined,
+              is_backup: state.individualData.is_backup || false,
+              backup_distributor_id: state.individualData.backup_distributor_id || undefined,
             };
 
             // Submit individual stock
@@ -213,6 +227,8 @@ export const useCreateStockStore = create<CreateStockState>()(
                   modelo: state.bulkData.modelo,
                   distribuidora: state.bulkData.distribuidora,
                   asignado_a: state.bulkData.asignado_a?.trim() || undefined,
+                  is_backup: state.bulkData.is_backup || false,
+                  backup_distributor_id: state.bulkData.backup_distributor_id || undefined,
                   ticket: state.bulkData.ticket?.trim() || undefined,
                   status: state.bulkData.status || 'NEW',
                   purchase_id: state.bulkData.purchase_id?.trim() || undefined,

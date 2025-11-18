@@ -5,7 +5,6 @@ import { Input } from "@/components/base/input/input";
 import { Select } from "@/components/base/select/select";
 import { TextArea } from "@/components/base/textarea/textarea";
 import { useAssignDeviceStore } from "@/store/assign-device.store";
-import { InfoCircle } from "@untitledui/icons";
 import { useShallow } from "zustand/react/shallow";
 
 export function AssignmentInfoStep() {
@@ -33,25 +32,9 @@ export function AssignmentInfoStep() {
   }, [fetchDistributorOptions]);
 
   return (
-    <div className="flex flex-col space-y-6">
-      {/* Información del dispositivo */}
-      {deviceInfo && (
-        <div className="rounded-lg bg-blue-900/20 border border-blue-700/50 p-4">
-          <h4 className="text-sm font-semibold text-blue-200 mb-2">
-            Dispositivo a asignar
-          </h4>
-          <div className="text-sm text-blue-300 space-y-1">
-            <p><span className="font-medium">Nombre:</span> {deviceInfo.device_name}</p>
-            <p><span className="font-medium">IMEI:</span> {deviceInfo.imei}</p>
-            {deviceInfo.model && (
-              <p><span className="font-medium">Modelo:</span> {deviceInfo.model}</p>
-            )}
-          </div>
-        </div>
-      )}
-
+    <div className="flex flex-col space-y-4">
       {/* Formulario */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
           id="assignee_name"
           label="Nombre y Apellido"
@@ -68,7 +51,6 @@ export function AssignmentInfoStep() {
           value={formData.assignee_phone}
           onChange={(val) => setFormData({ assignee_phone: val })}
           isRequired
-          hint="Si no tiene el del asignatario, puede ser el de quien reporta"
         />
 
         <Input
@@ -78,7 +60,6 @@ export function AssignmentInfoStep() {
           type="email"
           value={formData.assignee_email}
           onChange={(val) => setFormData({ assignee_email: val })}
-          hint="Para notificaciones de envío y recordatorios de devolución"
         />
 
         <Select
@@ -116,24 +97,8 @@ export function AssignmentInfoStep() {
             placeholder="Información de contacto adicional o notas importantes"
             value={formData.contact_details}
             onChange={(e) => setFormData({ contact_details: e.target.value })}
-            rows={3}
+            rows={2}
           />
-        </div>
-      </div>
-
-      {/* Info Box */}
-      <div className="rounded-lg bg-blue-900/40 border border-blue-700 p-5 flex gap-4 items-start">
-        <div className="mt-1 text-blue-400">
-          <InfoCircle className="w-5 h-5" />
-        </div>
-        <div>
-          <h3 className="text-sm font-semibold text-blue-200 mb-1">
-            Información de la Asignación
-          </h3>
-          <p className="text-sm text-blue-300 leading-relaxed">
-            Complete los datos del asignatario. Todos los campos marcados con asterisco (*) son obligatorios.
-            Esta información será utilizada para generar el registro de asignación y el seguimiento del dispositivo.
-          </p>
         </div>
       </div>
     </div>

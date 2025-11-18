@@ -86,11 +86,12 @@ model phone_model {
 }
 
 model distributor {
-  id          String       @id @default(cuid())
-  name        String       @unique
-  assignments assignment[]
-  devices     device[]
-  purchases   purchase[]
+  id                    String       @id @default(cuid())
+  name                  String       @unique
+  assignments           assignment[]
+  devices               device[]
+  backup_devices        device[]     @relation("DeviceBackupDistributor")
+  purchases             purchase[]
 
   @@map("distributor")
   @@schema("phones")
@@ -111,29 +112,33 @@ model purchase {
 }
 
 model device {
-  id              String        @id @default(cuid())
-  imei            String        @unique
-  assigned_to     String?
-  created_at      DateTime      @default(now())
-  distributor_id  String?
-  model_id        String
-  purchase_id     String?
-  ticket_id       String?
-  updated_at      DateTime      @updatedAt
-  status          device_status @default(NEW)
-  deleted_at      DateTime?
-  deletion_reason String?
-  is_deleted      Boolean       @default(false)
-  assignments     assignment[]
-  distributor     distributor?  @relation(fields: [distributor_id], references: [id])
-  model           phone_model   @relation(fields: [model_id], references: [id], onDelete: SetDefault)
-  purchase        purchase?     @relation(fields: [purchase_id], references: [id])
+  id                  String        @id @default(cuid())
+  imei                String        @unique
+  assigned_to         String?
+  created_at          DateTime      @default(now())
+  distributor_id      String?
+  model_id            String
+  purchase_id         String?
+  ticket_id           String?
+  updated_at          DateTime      @updatedAt
+  status              device_status @default(NEW)
+  deleted_at          DateTime?
+  deletion_reason     String?
+  is_deleted          Boolean       @default(false)
+  is_backup           Boolean       @default(false)
+  backup_distributor_id String?
+  assignments         assignment[]
+  distributor         distributor?  @relation(fields: [distributor_id], references: [id])
+  backup_distributor  distributor?  @relation("DeviceBackupDistributor", fields: [backup_distributor_id], references: [id])
+  model               phone_model   @relation(fields: [model_id], references: [id], onDelete: SetDefault)
+  purchase            purchase?     @relation(fields: [purchase_id], references: [id])
 
   @@index([model_id])
   @@index([status])
   @@index([assigned_to])
   @@index([ticket_id])
   @@index([is_deleted])
+  @@index([backup_distributor_id])
   @@map("device")
   @@schema("phones")
 }

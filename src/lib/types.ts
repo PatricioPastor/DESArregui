@@ -95,6 +95,12 @@ export interface InventoryRecord {
   estado: string;
     modelo: string;
   model_id: string;
+  is_backup?: boolean;
+  backup_distributor_id?: string | null;
+  backup_distributor?: {
+    id: string;
+    name: string;
+  } | null;
   model_details: {
     id: string;
     brand: string;

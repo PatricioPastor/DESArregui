@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
 import { getDeviceDetailByImei } from "@/lib/stock-detail";
 import { DeviceDetailClient } from "./device-detail.client";
+import { HeaderActions } from "./header-actions.client";
 import { INVENTORY_STATUS_COLOR } from "@/lib/inventory-utils";
 
 type DeviceDetailPageParams = {
@@ -60,7 +61,9 @@ export default async function DeviceDetailPage({
 
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">
-            <h1 className="text-2xl font-semibold text-primary tracking-tight">{detail.inventory.modelo}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-semibold text-primary tracking-tight">{detail.inventory.modelo}</h1>
+            </div>
             <p className="text-sm text-tertiary">
               IMEI <span className="font-mono text-secondary">{detail.inventory.imei}</span>
             </p>
@@ -85,6 +88,21 @@ export default async function DeviceDetailPage({
               ) : null}
             </div>
           </div>
+          <HeaderActions
+            canManuallyAssign={canManuallyAssign}
+            canDelete={canDelete}
+            hasActiveAssignment={!!currentAssignment}
+            assignmentId={currentAssignment?.id}
+            assignmentAssigneeName={currentAssignment?.assignee_name || undefined}
+            assignmentAt={currentAssignment?.at}
+            deviceImei={detail.inventory.imei}
+            deviceInfo={{
+              id: detail.inventory.raw?.id || "",
+              imei: detail.inventory.imei,
+              modelo: detail.inventory.modelo || "",
+              status: detail.inventory.status,
+            }}
+          />
         </div>
       </header>
 

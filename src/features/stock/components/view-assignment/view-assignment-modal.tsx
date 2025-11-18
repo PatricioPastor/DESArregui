@@ -6,7 +6,7 @@ import { Dialog } from "react-aria-components";
 import { Button } from "@/components/base/buttons/button";
 import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
-import { X, Download01, File01, User01, Phone01, MarkerPin01, Calendar, Package, Phone, Truck01 } from "@untitledui/icons";
+import { X, Download01, File01, User01, Phone01, MarkerPin01, Calendar, Package, Phone, Truck01, Edit01 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { generateShippingVoucherPDF } from "@/utils/pdf-generator";
 import { Modal, ModalOverlay } from "@/components/application/modals/modal";
@@ -45,15 +45,21 @@ interface Assignment {
 interface ViewAssignmentModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  deviceId: string | null;
+  deviceId?: string | null;
   deviceInfo?: any;
+  imei?: string | null;
+  assignmentId?: string | null;
+  onEditShipping?: () => void;
 }
 
 export function ViewAssignmentModal({
   open,
   onOpenChange,
   deviceId,
-  deviceInfo
+  deviceInfo,
+  imei,
+  assignmentId,
+  onEditShipping
 }: ViewAssignmentModalProps) {
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -64,22 +70,86 @@ export function ViewAssignmentModal({
 
   // Fetch assignment details when modal opens
   useEffect(() => {
-    if (open && deviceId) {
+    if (open && (deviceId || imei || assignmentId)) {
       fetchAssignmentDetails();
     }
-  }, [open, deviceId]);
+  }, [open, deviceId, imei, assignmentId]);
 
   const fetchAssignmentDetails = async () => {
-    if (!deviceId) return;
-
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/assignments?soti_device_id=${deviceId}&status=active`);
+      let url = '';
+      
+      // Si tenemos assignmentId, buscar directamente por ID usando query param
+      if (assignmentId) {
+        url = `/api/assignments?id=${assignmentId}`;
+        const response = await fetch(url);
+        if (response.ok) {
+          const data = await response.json();
+          // El endpoint devuelve directamente la asignación cuando se usa ?id=
+          if (data.id) {
+            setAssignment(data as Assignment);
+            setIsLoading(false);
+            return;
+          }
+        }
+      }
+      
+      // Si no encontramos por assignmentId, buscar por device_id o imei
+      if (imei) {
+        // Buscar por IMEI - necesitamos obtener el device_id primero
+        const deviceResponse = await fetch(`/api/stock/${imei}`);
+        if (deviceResponse.ok) {
+          const deviceData = await deviceResponse.json();
+          if (deviceData.success && deviceData.data?.inventory?.raw?.id) {
+            const actualDeviceId = deviceData.data.inventory.raw.id;
+            url = `/api/assignments?device_id=${actualDeviceId}&status=active`;
+          }
+        }
+      }
+      
+      // Si no encontramos por IMEI, intentar por soti_device_id
+      if (!url && deviceId) {
+        url = `/api/assignments?soti_device_id=${deviceId}&status=active`;
+      }
+      
+      // Si aún no tenemos URL, intentar buscar sin filtro de status
+      if (!url && imei) {
+        const deviceResponse = await fetch(`/api/stock/${imei}`);
+        if (deviceResponse.ok) {
+          const deviceData = await deviceResponse.json();
+          if (deviceData.success && deviceData.data?.inventory?.raw?.id) {
+            const actualDeviceId = deviceData.data.inventory.raw.id;
+            url = `/api/assignments?device_id=${actualDeviceId}`;
+          }
+        }
+      }
+
+      if (!url) {
+        throw new Error('No se pudo construir la URL de búsqueda');
+      }
+
+      const response = await fetch(url);
       if (!response.ok) throw new Error('Error al cargar detalles de asignación');
       
       const data = await response.json();
       if (data.assignments && data.assignments.length > 0) {
-        setAssignment(data.assignments[0]);
+        // Si tenemos assignmentId, buscar la asignación específica
+        if (assignmentId) {
+          const specificAssignment = data.assignments.find((a: Assignment) => a.id === assignmentId);
+          if (specificAssignment) {
+            setAssignment(specificAssignment);
+            setIsLoading(false);
+            return;
+          }
+        }
+        
+        // Ordenar por fecha y tomar la más reciente activa, o la más reciente si no hay activas
+        const activeAssignments = data.assignments.filter((a: Assignment) => a.status === 'active');
+        const assignmentToShow = activeAssignments.length > 0 
+          ? activeAssignments[0] 
+          : data.assignments[0];
+        setAssignment(assignmentToShow);
       }
     } catch (error) {
       console.error('Error fetching assignment:', error);
@@ -308,16 +378,31 @@ export function ViewAssignmentModal({
               Cerrar
             </Button>
             
-            {assignment?.shipping_voucher_id && (
-              <Button
-                color="primary"
-                onClick={handleGeneratePDF}
-                disabled={isGeneratingPDF}
-                iconLeading={Download01}
-              >
-                {isGeneratingPDF ? 'Generando...' : 'Descargar Vale PDF'}
-              </Button>
-            )}
+            <div className="flex gap-3">
+              {assignment?.status === 'active' && onEditShipping && (
+                <Button
+                  color="primary"
+                  onClick={() => {
+                    handleClose();
+                    onEditShipping();
+                  }}
+                  iconLeading={Edit01}
+                >
+                  Editar Envío
+                </Button>
+              )}
+              
+              {assignment?.shipping_voucher_id && (
+                <Button
+                  color="primary"
+                  onClick={handleGeneratePDF}
+                  disabled={isGeneratingPDF}
+                  iconLeading={Download01}
+                >
+                  {isGeneratingPDF ? 'Generando...' : 'Descargar Vale PDF'}
+                </Button>
+              )}
+            </div>
           </div>
         </Dialog>
       </Modal>

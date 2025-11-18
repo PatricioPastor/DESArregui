@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ModalOverlay, Modal, Dialog } from "@/components/application/modals/modal";
+import { useEffect, useMemo, useState } from "react";
+import { BaseModal } from "@/components/modals/base-modal";
 import { Button } from "@/components/base/buttons/button";
-import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { Input } from "@/components/base/input/input";
 import { Select } from "@/components/base/select/select";
 import { TextArea } from "@/components/base/textarea/textarea";
 import { Badge } from "@/components/base/badges/badges";
 import { RadioButton, RadioGroup } from "@/components/base/radio-buttons/radio-buttons";
-import { X, User01, MarkerPin01, Phone, RefreshCw01, UserPlus01, Package } from "@untitledui/icons";
+import { User01, MarkerPin01, Phone, RefreshCw01, Package, ChevronLeft, ChevronRight } from "@untitledui/icons";
 import { toast } from "sonner";
 import { useAssignManualStore } from "./assign-manual.store";
 
@@ -63,7 +62,6 @@ export function AssignManualModal({ open, onOpenChange, deviceInfo, onSuccess }:
     resetState,
   } = useAssignManualStore();
 
-  const contentRef = useRef<HTMLDivElement>(null);
   const totalSteps = STEP_DEFINITIONS.length;
   const activeStep = STEP_DEFINITIONS[currentStep - 1] ?? STEP_DEFINITIONS[0];
   const [stepAttempts, setStepAttempts] = useState<Record<number, boolean>>({});
@@ -72,26 +70,14 @@ export function AssignManualModal({ open, onOpenChange, deviceInfo, onSuccess }:
   useEffect(() => {
     if (open) {
       setCurrentStep(1);
-    }
-  }, [open, setCurrentStep]);
-
-  useEffect(() => {
-    if (open) {
       setDeviceInfo(deviceInfo);
     }
-  }, [open, deviceInfo, setDeviceInfo]);
+  }, [open, setCurrentStep, deviceInfo, setDeviceInfo]);
 
   useEffect(() => {
     if (!open || distributorOptions.length) return;
     fetchDistributorOptions();
   }, [open, distributorOptions.length, fetchDistributorOptions]);
-
-  // Volver al inicio del contenido cuando cambia el paso
-  useEffect(() => {
-    if (contentRef.current) {
-      contentRef.current.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  }, [currentStep]);
 
   useEffect(() => {
     if (!open) {
@@ -202,8 +188,8 @@ export function AssignManualModal({ open, onOpenChange, deviceInfo, onSuccess }:
     switch (currentStep) {
       case 1:
         return (
-          <section className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2">
+          <section className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <Input
                 label="Nombre completo"
                 placeholder="Juan Pérez"
@@ -212,7 +198,6 @@ export function AssignManualModal({ open, onOpenChange, deviceInfo, onSuccess }:
                 icon={User01}
                 isRequired
                 autoFocus
-                
                 hint={
                   validationStateForField.assignee_name
                     ? "Ingresa el nombre y apellido de la persona que recibirá el equipo."
@@ -239,7 +224,7 @@ export function AssignManualModal({ open, onOpenChange, deviceInfo, onSuccess }:
 
       case 2:
         return (
-          <section className="space-y-5">
+          <section className="space-y-4">
             <Select
               label="Distribuidora"
               placeholder={isLoadingOptions ? "Cargando distribuidoras..." : "Seleccione una distribuidora"}
@@ -250,7 +235,6 @@ export function AssignManualModal({ open, onOpenChange, deviceInfo, onSuccess }:
               }}
               isDisabled={isLoadingOptions}
               isRequired
-              
               hint={
                 validationStateForField.distributor_id
                   ? "Elegí la distribuidora responsable del envío."
@@ -280,7 +264,6 @@ export function AssignManualModal({ open, onOpenChange, deviceInfo, onSuccess }:
               onChange={(value) => setFormData({ delivery_location: value })}
               icon={MarkerPin01}
               isRequired
-              
               hint={
                 validationStateForField.delivery_location
                   ? "Indica claramente dónde se enviará el dispositivo."
@@ -289,11 +272,11 @@ export function AssignManualModal({ open, onOpenChange, deviceInfo, onSuccess }:
             />
 
             <TextArea
-              label="Contacto adicional"
-              placeholder="Información adicional de contacto o instrucciones de entrega (opcional)"
+              label="Contacto adicional (opcional)"
+              placeholder="Información adicional de contacto o instrucciones de entrega"
               value={formData.contact_details}
               onChange={(e) => setFormData({ contact_details: e.target.value })}
-              rows={3}
+              rows={2}
             />
           </section>
         );
@@ -301,8 +284,8 @@ export function AssignManualModal({ open, onOpenChange, deviceInfo, onSuccess }:
       case 3:
       default:
         return (
-          <section className="space-y-5">
-            <div className="space-y-3 rounded-lg border border-surface bg-surface-1 p-4">
+          <section className="space-y-4">
+            <div className="space-y-2 rounded-lg border border-surface bg-surface-1 p-3">
               <p className="text-sm font-medium text-primary">Vale de envío</p>
               <RadioGroup
                 aria-label="Vale de envío"
@@ -312,17 +295,17 @@ export function AssignManualModal({ open, onOpenChange, deviceInfo, onSuccess }:
                 <RadioButton
                   value="true"
                   label="Generar vale de envío"
-                  hint="Se generará un código único para rastrear el envío."
+                  hint="Se generará un código único para rastrear el envío"
                 />
                 <RadioButton
                   value="false"
                   label="No generar vale"
-                  hint="Podrás crear el vale manualmente más adelante."
+                  hint="Podrás crear el vale manualmente más adelante"
                 />
               </RadioGroup>
             </div>
 
-            <div className="space-y-3 rounded-lg border border-surface bg-surface-1 p-4">
+            <div className="space-y-3 rounded-lg border border-surface bg-surface-1 p-3">
               <p className="text-sm font-medium text-primary">Devolución esperada</p>
               <RadioGroup
                 aria-label="Devolución esperada"
@@ -332,17 +315,17 @@ export function AssignManualModal({ open, onOpenChange, deviceInfo, onSuccess }:
                 <RadioButton
                   value="true"
                   label="Sí, espera devolución"
-                  hint="El asignatario deberá devolver otro dispositivo."
+                  hint="El asignatario deberá devolver otro dispositivo"
                 />
                 <RadioButton
                   value="false"
                   label="No, sin devolución"
-                  hint="No se solicitará un dispositivo de reemplazo."
+                  hint="No se solicitará un dispositivo de reemplazo"
                 />
               </RadioGroup>
 
               {formData.expects_return && (
-                <div className="rounded-lg border border-brand-primary/40 bg-brand-primary/10 p-4">
+                <div className="mt-3 pt-3 border-t border-surface">
                   <Input
                     label="IMEI del dispositivo a devolver"
                     placeholder="123456789012345"
@@ -351,10 +334,9 @@ export function AssignManualModal({ open, onOpenChange, deviceInfo, onSuccess }:
                     icon={RefreshCw01}
                     isRequired
                     autoFocus
-                    
                     hint={
                       validationStateForField.return_device_imei
-                        ? "Necesitamos el IMEI del dispositivo que se espera recibir."
+                        ? "Necesitamos el IMEI del dispositivo que se espera recibir"
                         : undefined
                     }
                   />
@@ -367,88 +349,80 @@ export function AssignManualModal({ open, onOpenChange, deviceInfo, onSuccess }:
   };
 
   return (
-    <ModalOverlay isOpen={open} onOpenChange={onOpenChange}>
-      <Modal>
-        <Dialog className="bg-primary rounded-lg shadow-xl max-w-3xl w-full flex flex-col mx-auto max-h-[90vh]">
-          {/* Header */}
-          <header className="flex flex-col gap-4 border-b border-secondary px-6 py-5">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-50">
-                  <UserPlus01 className="h-5 w-5 text-brand-primary" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-tertiary">
-                    Paso {currentStep} de {totalSteps}
-                  </p>
-                  <h2 className="text-lg font-semibold text-primary leading-tight">{activeStep.title}</h2>
-                  <p className="text-sm text-tertiary leading-snug">{activeStep.description}</p>
-                </div>
-              </div>
-              <ButtonUtility onClick={handleClose} icon={X} size="sm" />
-            </div>
-
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                {STEP_DEFINITIONS.map((step, index) => {
-                  const isCompleted = index + 1 < currentStep;
-                  const isActive = index + 1 === currentStep;
-                  const colorClass = isActive || isCompleted ? "bg-brand-solid" : "bg-surface-2";
-
-                  return <span key={step.id} className={`h-1 flex-1 rounded-full transition-colors ${colorClass}`} />;
-                })}
-              </div>
-
-              <div className="flex items-center gap-3 rounded-lg border border-surface bg-surface-1 px-3 py-2.5">
-                <Package className="h-5 w-5 text-secondary" />
-                <div className="flex-1 leading-tight">
-                  <p className="text-sm font-medium text-primary">{deviceInfo.modelo}</p>
-                  <p className="text-xs text-tertiary">IMEI: {deviceInfo.imei}</p>
-                </div>
-                <Badge size="sm" color="gray">
-                  {deviceInfo.status}
-                </Badge>
-              </div>
-            </div>
-          </header>
-
-          {/* Content */}
-          <div ref={contentRef} className="flex-1 overflow-y-auto px-6 pb-6 pt-2">
-            <div className="space-y-6 py-4">
-              {renderStepContent()}
-
-              {error && (
-                <div className="bg-error-50 border border-error-200 text-error-700 rounded-lg p-3 text-sm">
-                  {error}
-                </div>
-              )}
-            </div>
+    <BaseModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={activeStep.title}
+      subtitle={`Paso ${currentStep} de ${totalSteps}`}
+      size="sm"
+      footer={
+        <div className="flex justify-between gap-3">
+          <div>
+            {currentStep > 1 && (
+              <Button
+                color="secondary"
+                onClick={handlePreviousStep}
+                isDisabled={isLoading}
+                iconLeading={ChevronLeft}
+              >
+                Anterior
+              </Button>
+            )}
           </div>
-
-          {/* Footer */}
-          <footer className="flex items-center gap-3 border-t border-surface bg-surface-1 px-6 py-5">
-            <Button color="secondary" onClick={handleClose} isDisabled={isLoading} size="md">
+          <div className="flex gap-3">
+            <Button color="secondary" onClick={handleClose} isDisabled={isLoading}>
               Cancelar
             </Button>
-            <div className="ml-auto flex items-center gap-2">
-              {currentStep > 1 && (
-                <Button color="secondary" onClick={handlePreviousStep} isDisabled={isLoading} size="md">
-                  Volver
-                </Button>
-              )}
-              <Button
-                color="primary"
-                onClick={handlePrimaryAction}
-                isDisabled={!canProceed || isLoading}
-                isLoading={isLastStep && isLoading}
-                size="md"
-              >
-                {primaryActionLabel}
-              </Button>
+            <Button
+              color="primary"
+              onClick={handlePrimaryAction}
+              isDisabled={!canProceed || isLoading}
+              isLoading={isLastStep && isLoading}
+              iconTrailing={!isLastStep ? ChevronRight : undefined}
+            >
+              {primaryActionLabel}
+            </Button>
+          </div>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        {/* Progress bar compacto */}
+        <div className="flex items-center gap-1.5">
+          {STEP_DEFINITIONS.map((step, index) => {
+            const isCompleted = index + 1 < currentStep;
+            const isActive = index + 1 === currentStep;
+            const colorClass = isActive || isCompleted ? "bg-primary" : "bg-surface-2";
+            return <span key={step.id} className={`h-1 flex-1 rounded-full transition-colors ${colorClass}`} />;
+          })}
+        </div>
+
+        {/* Device info compacto */}
+        <div className="flex items-center gap-2 rounded-lg border border-surface bg-surface-1 px-3 py-2">
+          <Package className="h-3.5 w-3.5 text-secondary shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-primary truncate">{deviceInfo.modelo}</p>
+            <p className="text-xs text-secondary font-mono">{deviceInfo.imei}</p>
+          </div>
+          <Badge size="sm" color="gray">
+            {deviceInfo.status}
+          </Badge>
+        </div>
+
+        {/* Step description */}
+        <p className="text-xs text-secondary">{activeStep.description}</p>
+
+        {/* Step content */}
+        <div className="space-y-4">
+          {renderStepContent()}
+
+          {error && (
+            <div className="bg-error-50 border border-error-200 text-error-700 rounded-lg p-3 text-sm">
+              {error}
             </div>
-          </footer>
-        </Dialog>
-      </Modal>
-    </ModalOverlay>
+          )}
+        </div>
+      </div>
+    </BaseModal>
   );
 }
