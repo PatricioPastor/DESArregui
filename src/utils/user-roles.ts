@@ -12,6 +12,7 @@ const ADMIN_EMAILS = [
   'patricio.pastor@desasa.com.ar',
   'santiago.bailez@desasa.com.ar',
   'gianfranco.petrella@desasa.com.ar',
+  'juancruz.gonzalez@edensa.com.ar'
 ];
 
 /**
