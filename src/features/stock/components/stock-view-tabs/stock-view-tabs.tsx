@@ -32,3 +32,5 @@ export function StockViewTabs({ activeView, onViewChange, items }: StockViewTabs
 
 
 
+
+

@@ -279,7 +279,7 @@ export function EditStockModal({ open, onOpenChange, device, onSuccess }: EditSt
           <div className="col-span-full border-t border-gray-700 pt-6">
             <div className="flex flex-col space-y-4">
               <Checkbox
-                checked={formState.is_backup}
+                isSelected={!!formState.is_backup}
                 onChange={(checked) => {
                   setFormState((prev) => ({ 
                     ...prev,
@@ -288,7 +288,7 @@ export function EditStockModal({ open, onOpenChange, device, onSuccess }: EditSt
                   }));
                 }}
                 label="Es dispositivo de backup"
-                description="Marca si este dispositivo está físicamente en una distribuidora como stock de respaldo"
+                hint="Marca si este dispositivo está físicamente en una distribuidora como stock de respaldo"
               />
 
               {formState.is_backup && (

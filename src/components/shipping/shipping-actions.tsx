@@ -18,7 +18,7 @@ interface ShippingActionsProps {
   assignment: Assignment | null | undefined;
   onEdit?: () => void;
   onSuccess?: () => void;
-  size?: "xs" | "sm" | "md";
+  size?: "sm" ;
   variant?: "button" | "utility";
 }
 
@@ -26,7 +26,7 @@ export function ShippingActions({
   assignment,
   onEdit,
   onSuccess,
-  size = "xs",
+  size = "sm",
   variant = "utility",
 }: ShippingActionsProps) {
   const [isLoading, setIsLoading] = useState(false);
@@ -109,7 +109,7 @@ export function ShippingActions({
     return (
       <ButtonUtility
         size={size}
-        color="primary"
+        color="secondary"
         tooltip="Iniciar envío"
         icon={Truck01}
         onClick={handleStartShipping}
@@ -126,7 +126,7 @@ export function ShippingActions({
           <>
             <Button
               size={size}
-              color="success"
+              color="secondary"
               iconLeading={CheckCircle}
               onClick={handleDeliverShipping}
               disabled={isLoading}
@@ -136,7 +136,7 @@ export function ShippingActions({
             </Button>
             <Button
               size={size}
-              color="secondary"
+              color="primary"
               iconLeading={Edit01}
               onClick={onEdit}
             >
@@ -147,7 +147,7 @@ export function ShippingActions({
           <>
             <ButtonUtility
               size={size}
-              color="success"
+              color="secondary"
               tooltip="Finalizar envío"
               icon={CheckCircle}
               onClick={handleDeliverShipping}

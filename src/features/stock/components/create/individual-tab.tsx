@@ -140,7 +140,7 @@ export function IndividualTab() {
       <div className="border-t border-gray-700 pt-6">
         <div className="flex flex-col space-y-4">
           <Checkbox
-            checked={individualData.is_backup || false}
+            isSelected={individualData.is_backup || false}
             onChange={(checked) => {
               setIndividualData({ 
                 is_backup: checked,
@@ -148,7 +148,7 @@ export function IndividualTab() {
               });
             }}
             label="Es dispositivo de backup"
-            description="Marca si este dispositivo está físicamente en una distribuidora como stock de respaldo"
+            hint="Marca si este dispositivo está físicamente en una distribuidora como stock de respaldo"
           />
 
           {individualData.is_backup && (

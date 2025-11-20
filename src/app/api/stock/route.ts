@@ -374,7 +374,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { imei, modelo, distribuidora, asignado_a, ticket, purchase_id } = body;
+    const { imei, modelo, distribuidora, asignado_a, ticket, purchase_id, is_backup, backup_distributor_id } = body;
 
     // Validation
     if (!imei?.trim()) {

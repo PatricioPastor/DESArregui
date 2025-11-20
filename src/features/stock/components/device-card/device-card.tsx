@@ -164,7 +164,7 @@ export function DeviceCard({
           onSuccess={() => {
             // Refresh handled by parent
           }}
-          size="xs"
+          size="sm"
           variant="utility"
         />
 

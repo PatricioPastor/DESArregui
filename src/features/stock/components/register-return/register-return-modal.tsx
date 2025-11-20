@@ -177,8 +177,9 @@ export function RegisterReturnModal({
               value={imeiToVerify}
               onChange={(val) => setImeiToVerify(val)}
               icon={SearchLg}
-              isLoading={isValidatingImei}
-            />
+              isDisabled={isValidatingImei}
+              
+            />  
 
             {deviceFound?.found === true && (
               <div className="bg-success-50 border border-success-200 rounded-lg p-3 flex items-start gap-2">

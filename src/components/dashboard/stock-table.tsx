@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useMemo, useEffect } from "react";
-import { ArrowCircleRight, Box, Database01, FilterLines, Plus, SearchLg, Send01, UploadCloud02, Eye, X, Edit01 } from "@untitledui/icons";
+import { ArrowCircleRight, Box, Database01, FilterLines, Plus, SearchLg, Send01, UploadCloud02, Eye, X, Edit01, CheckCircle } from "@untitledui/icons";
 import type { SortDescriptor } from "react-aria-components";
 import { PaginationCardMinimal } from "@/components/application/pagination/pagination";
 import { Table, TableCard, TableRowActionsDropdown } from "@/components/application/table/table";
@@ -1009,7 +1009,7 @@ const stateFilterOptions = useMemo(
                               setIsUpdateShippingModalOpen(true);
                             }}
                             onSuccess={refresh}
-                            size="xs"
+                            size="sm"
                             variant="utility"
                           />
                         </div>

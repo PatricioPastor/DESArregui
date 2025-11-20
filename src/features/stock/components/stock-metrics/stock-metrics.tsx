@@ -16,7 +16,7 @@ interface Metric {
   id: string;
   label: string;
   value: string;
-  icon?: React.ComponentType<any> | null;
+  icon?: React.ReactNode;
   subtitle: string;
 }
 
@@ -50,7 +50,7 @@ export function StockMetrics({ isLoading, metrics }: StockMetricsProps) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {metrics.map((metric) => {
-        const Icon = metric.icon || ICON_MAP[metric.id] || Database01;
+        const Icon = metric.icon || Database01 ;
         return (
           <div
             key={metric.id}
