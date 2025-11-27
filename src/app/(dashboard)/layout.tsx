@@ -4,7 +4,7 @@
 import { SidebarNavigationSimple } from "@/components/application/app-navigation/sidebar-navigation/sidebar-simple";
 import { Header } from "@/components/application/navigation/main-nav";
 import { useSession, signOut } from "@/lib/auth-client";
-import { BarChart03, Home01, Package, Phone01 } from "@untitledui/icons";
+import { BarChart03, Home01, Package, Phone01, Signal01 } from "@untitledui/icons";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
 import { toast, Toaster } from "sonner";
@@ -16,6 +16,7 @@ const allNavigation = [
   { label: "Mesa de entrada", href: "/", icon: Home01, current: false },
   { label: "SOTI", href: "/soti", icon: Phone01, current: false },
   { label: "Inventario", href: "/stock", icon: Package, current: false },
+  { label: "SIMS", href: "/sims", icon: Signal01, current: false },
   { label: "Reportes", href: "/reports/phones", icon: BarChart03, current: false },
 ];
 
@@ -64,7 +65,7 @@ export default function layout({
 
       // If user is not admin, restrict access to admin-only routes
       if (!isAdmin(session.user.email)) {
-        const restrictedRoutes = ['/', '/soti', '/stock'];
+        const restrictedRoutes = ['/', '/soti', '/stock', '/sims'];
         const isRestrictedRoute = restrictedRoutes.some(route =>
           pathname === route || pathname.startsWith(route + '/')
         );

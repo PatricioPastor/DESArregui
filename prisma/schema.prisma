@@ -92,6 +92,7 @@ model distributor {
   devices               device[]
   backup_devices        device[]     @relation("DeviceBackupDistributor")
   purchases             purchase[]
+  sims                  sim[]
 
   @@map("distributor")
   @@schema("phones")
@@ -307,4 +308,33 @@ enum assignment_type {
   REPLACE
 
   @@schema("support")
+}
+
+enum sim_provider {
+  CLARO
+  MOVISTAR
+
+  @@schema("phones")
+}
+
+model sim {
+  id             String        @id @default(cuid())
+  icc            String        @unique
+  ip             String?
+  status         String
+  provider       sim_provider
+  distributor_id String?
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+  last_sync      DateTime      @default(now())
+  is_active      Boolean       @default(true)
+  distributor    distributor?  @relation(fields: [distributor_id], references: [id])
+
+  @@index([icc])
+  @@index([status])
+  @@index([provider])
+  @@index([distributor_id])
+  @@index([is_active])
+  @@map("sim")
+  @@schema("phones")
 }

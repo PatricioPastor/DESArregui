@@ -311,5 +311,61 @@ export interface CallReportsFilters {
   searchKeyword?: string;
 }
 
+// ==================== SIMS MODULE ====================
+
+export type SimProvider = 'CLARO' | 'MOVISTAR';
+
+export interface SimRecord {
+  icc: string;
+  ip?: string;
+  status: string;
+  provider: SimProvider;
+  distributor_id?: string;
+  distributor?: {
+    id: string;
+    name: string;
+  };
+}
+
+// Input format from Excel/Sheets (Spanish column names)
+export interface SimRecordInput {
+  ICC: string;
+  IP?: string;
+  Estado: string;
+  Empresa: string;
+}
+
+export interface SimResponse {
+  success: boolean;
+  data?: SimRecord[];
+  totalRecords?: number;
+  lastUpdated?: string;
+  metadata?: {
+    statuses: string[];
+    providers: SimProvider[];
+    distributors: Array<{ id: string; name: string }>;
+    totalActive: number;
+    totalInactive: number;
+  };
+  error?: string;
+}
+
+export interface SimSyncResponse {
+  success: boolean;
+  processed: number;
+  created: number;
+  updated: number;
+  deactivated: number;
+  createdDistributors: number;
+  errors: number;
+  error?: string;
+  details?: {
+    errors: Array<{
+      sim: Partial<SimRecordInput>;
+      error: string;
+    }>;
+  };
+}
+
 
 
