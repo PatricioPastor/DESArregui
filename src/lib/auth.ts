@@ -1,13 +1,134 @@
-import { betterAuth } from 'better-auth'
-import { prismaAdapter } from 'better-auth/adapters/prisma'
-import { createAuthMiddleware, APIError } from "better-auth/api";
-import prisma from '@/lib/prisma'
+import { betterAuth } from 'better-auth';
+import { prismaAdapter } from 'better-auth/adapters/prisma';
+import prisma from '@/lib/prisma';
 
-const ALLOW = ["desasa.com.ar", "edensa.com.ar", "edessa.com.ar", "edesa.com.ar"];                  // dominios permitidos (opcional)
-const BLOCK = ["mailinator.com", "tempmail.com"]; // dominios bloqueados
+// ============================================
+// Domain Validation (Single Responsibility)
+// ============================================
 
-const domainOf = (email?: string) =>
-  email?.split("@").pop()?.toLowerCase() ?? "";
+interface EmailDomainConfig {
+  readonly allowed: readonly string[];
+  readonly blocked: readonly string[];
+}
+
+const EMAIL_DOMAIN_CONFIG: EmailDomainConfig = {
+  allowed: ['desasa.com.ar', 'edensa.com.ar', 'edessa.com.ar', 'edesa.com.ar'],
+  blocked: ['mailinator.com', 'tempmail.com'],
+} as const;
+
+/**
+ * Extracts the domain from an email address
+ * @returns The domain in lowercase, or empty string if invalid
+ */
+const extractEmailDomain = (email?: string | null): string => {
+  if (!email) return '';
+
+  const parts = email.split('@');
+  if (parts.length !== 2) return '';
+
+  return parts[1].toLowerCase();
+};
+
+/**
+ * Validates if a domain is in the blocked list
+ */
+const isBlockedDomain = (domain: string): boolean => {
+  if (!domain) return false;
+  return EMAIL_DOMAIN_CONFIG.blocked.includes(domain);
+};
+
+/**
+ * Validates if a domain is in the allowed list (if list is configured)
+ */
+const isAllowedDomain = (domain: string): boolean => {
+  if (!domain) return false;
+  if (EMAIL_DOMAIN_CONFIG.allowed.length === 0) return true;
+  return EMAIL_DOMAIN_CONFIG.allowed.includes(domain);
+};
+
+/**
+ * Validates email domain against allow/block lists
+ * @returns true if email is valid, false otherwise
+ */
+export const validateEmailDomain = (email?: string | null): boolean => {
+  if (!email) return false;
+
+  const domain = extractEmailDomain(email);
+  if (!domain) return false;
+
+  // Early return for blocked domains
+  if (isBlockedDomain(domain)) return false;
+
+  // Check if domain is allowed
+  return isAllowedDomain(domain);
+};
+
+/**
+ * Gets a human-readable error message for domain validation
+ */
+export const getDomainValidationError = (email?: string | null): string => {
+  if (!email) return 'Email is required';
+
+  const domain = extractEmailDomain(email);
+  if (!domain) return 'Invalid email format';
+
+  if (isBlockedDomain(domain)) {
+    return `The domain "${domain}" is not allowed`;
+  }
+
+  if (!isAllowedDomain(domain)) {
+    return `Only emails from authorized domains are allowed`;
+  }
+
+  return 'Invalid email domain';
+};
+
+// ============================================
+// Auth Configuration (Open/Closed Principle)
+// ============================================
+
+interface SessionConfig {
+  readonly expiresIn: number;
+  readonly updateAge: number;
+}
+
+const SESSION_CONFIG: SessionConfig = {
+  expiresIn: 60 * 60 * 24 * 7, // 7 days
+  updateAge: 60 * 60 * 24, // 1 day
+} as const;
+
+interface SocialProviderConfig {
+  readonly clientId: string;
+  readonly clientSecret: string;
+}
+
+/**
+ * Checks if Google OAuth credentials are configured
+ */
+const hasGoogleCredentials = (): boolean => {
+  return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+};
+
+/**
+ * Gets Google OAuth configuration if available
+ * @returns Configuration object or undefined if not configured
+ */
+const getGoogleProviderConfig = (): SocialProviderConfig | undefined => {
+  if (!hasGoogleCredentials()) {
+    return undefined;
+  }
+
+  return {
+    clientId: process.env.GOOGLE_CLIENT_ID!,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+  };
+};
+
+// ============================================
+// Auth Instance (Dependency Inversion)
+// ============================================
+
+const googleConfig = getGoogleProviderConfig();
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -16,50 +137,38 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
-  socialProviders: {
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID as string,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-    },
-  },
-  session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // 1 day
-  },
-  
-   hooks: {
-    // Email/password: validamos antes de ejecutar el endpoint
+  socialProviders: googleConfig
+    ? {
+        google: googleConfig,
+      }
+    : {},
+  session: SESSION_CONFIG,
+  hooks: {
+    // Commented hooks for domain validation
+    // Uncomment when domain validation is required
+
     // before: createAuthMiddleware(async (ctx) => {
     //   if (ctx.path === "/sign-up/email" || ctx.path === "/sign-in/email") {
     //     const email = ctx.body?.email as string | undefined;
-    //     const d = domainOf(email);
-    //     const deny =
-    //       !email ||
-    //       BLOCK.includes(d) ||
-    //       (ALLOW.length > 0 && !ALLOW.includes(d));
-    //     if (deny) {
+    //
+    //     if (!validateEmailDomain(email)) {
     //       throw new APIError("BAD_REQUEST", {
-    //         message: "El dominio de tu email no está permitido.",
+    //         message: getDomainValidationError(email),
     //       });
     //     }
     //   }
     // }),
 
-    // OAuth/social: el email llega después del provider → validamos en "after"
     // after: createAuthMiddleware(async (ctx) => {
     //   if (ctx.path.startsWith("/sign-in/social")) {
     //     const email = ctx.context.newSession?.user.email;
-    //     const d = domainOf(email);
-
-        
-        
-
-    //     const deny = !email || BLOCK.includes(d) || (ALLOW.length > 0 && !ALLOW.includes(d));
-    //     if (deny) {
-          
-    //       throw new APIError("UNAUTHORIZED", { message: "Dominio no permitido. " + email });
+    //
+    //     if (!validateEmailDomain(email)) {
+    //       throw new APIError("UNAUTHORIZED", {
+    //         message: getDomainValidationError(email)
+    //       });
     //     }
     //   }
     // }),
   },
-})
+});

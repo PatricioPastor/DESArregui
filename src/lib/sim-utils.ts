@@ -60,3 +60,6 @@ export function validateSimRecord(record: {
   return { valid: true };
 }
 
+
+
+

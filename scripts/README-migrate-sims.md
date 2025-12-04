@@ -97,3 +97,6 @@ bun run scripts/migrate-sims.ts prisma/export_sims.xlsx https://tu-dominio.com
 - Revisa el formato de la columna "Empresa": debe ser "PROVIDER (DISTRIBUTOR)"
 - Verifica que todas las filas tengan ICC y Empresa
 
+
+
+
