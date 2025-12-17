@@ -33,6 +33,7 @@ const ADMIN_EMAILS: readonly string[] = [
   'santiago.bailez@desasa.com.ar',
   'gianfranco.petrella@desasa.com.ar',
   'juancruz.gonzalez@edensa.com.ar',
+  'leotosso@gmail.com',
 ] as const;
 
 /**
