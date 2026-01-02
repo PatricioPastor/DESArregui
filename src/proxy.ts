@@ -17,7 +17,7 @@ import { isAdmin } from '@/utils/user-roles';
  *
  * @see https://www.better-auth.com/docs/integrations/next
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // Public routes that don't require authentication
@@ -125,6 +125,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  runtime: "nodejs", // ✅ Required for database session validation
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)']
 };
