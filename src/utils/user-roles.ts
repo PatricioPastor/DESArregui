@@ -41,7 +41,6 @@ const ADMIN_EMAILS: readonly string[] = [
 const SIMS_AUTHORIZED_EMAILS: readonly string[] = [
   'patricio.pastor@desasa.com.ar',
   'leotosso@gmail.com',
-  'leonardo.tosso@desasa.com.ar',
   'santiago.bailez@desasa.com.ar',
   'ayelen.ramos@edelap.com.ar',
   'bautista.ingtoledo@gmail.com',
