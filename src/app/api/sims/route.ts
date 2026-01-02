@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import type { SimRecord, SimResponse } from '@/lib/types';
+import { withRoles } from '@/lib/api-auth';
 
-export async function GET(request: NextRequest) {
+export const GET = withRoles(['admin', 'sims-viewer'], async (request: NextRequest, session) => {
   try {
     const { searchParams } = new URL(request.url);
 
@@ -135,4 +136,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

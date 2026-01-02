@@ -32,7 +32,6 @@ const ADMIN_EMAILS: readonly string[] = [
   'patricio.pastor@desasa.com.ar',
   'santiago.bailez@desasa.com.ar',
   'gianfranco.petrella@desasa.com.ar',
-  'juancruz.gonzalez@edensa.com.ar',
   'leotosso@gmail.com',
 ] as const;
 
@@ -41,17 +40,30 @@ const ADMIN_EMAILS: readonly string[] = [
  */
 const SIMS_AUTHORIZED_EMAILS: readonly string[] = [
   'patricio.pastor@desasa.com.ar',
-  'juancruz.gonzalez@edensa.com.ar',
   'leotosso@gmail.com',
+  'leonardo.tosso@desasa.com.ar',
+  'santiago.bailez@desasa.com.ar',
   'ayelen.ramos@edelap.com.ar',
   'bautista.ingtoledo@gmail.com',
   'carolina.muraca@edelap.com.ar',
-  'cotojuani@gmail.com',
   'cristian.sarena@edelap.com.ar',
+  'diego.dangelo@desasa.com.ar',
+  'fernando.carvatchi@edelap.com.ar',
+  'florencia.crena@edelap.com.ar',
+  'franco.vega@edensa.com.ar',
   'gustavo.magnetti@edelap.com.ar',
+  'intranetg@edensa.com.ar',
+  'johana.ingtoledo@gmail.com',
+  'juan.coto@edelap.com.ar',
+  'juan.gutierrez@edensa.com.ar',
+  'juancruz.gonzalez@edensa.com.ar',
+  'gestionoperativadelasareas@edensa.com.ar',
+  'juancruz.merlo@desasa.com.ar',
   'karina.molina@edelap.com.ar',
-  'leonardo.tosso@desasa.com.ar',
-  'santiago.bailez@desasa.com.ar',
+  'lautaro.crena@edelap.com.ar',
+  'mario.diaz@edelap.com.ar',
+  'oscar.rojas@edensa.com.ar',
+  'sergio.lemos@desasa.com.ar',
 ] as const;
 
 /**
@@ -63,6 +75,7 @@ const ROUTE_ACCESS_CONFIG: readonly RouteAccess[] = [
   { path: '/stock', allowedRoles: ['admin'] },
   { path: '/sims', allowedRoles: ['admin', 'sims-viewer'] },
   { path: '/reports/phones', allowedRoles: ['admin', 'viewer'] },
+  { path: '/admin/users', allowedRoles: ['admin'] },
 ] as const;
 
 // ============================================

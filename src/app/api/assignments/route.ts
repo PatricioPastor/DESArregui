@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { device_status } from "@/generated/prisma";
 import { z } from "zod";
+import { withAuth, withAdminOnly } from "@/lib/api-auth";
 
 // Schema de validación para la creación de asignaciones
 const CreateAssignmentSchema = z.object({
@@ -28,7 +29,7 @@ function generateShippingVoucherId(): string {
 }
 
 // GET - Obtener todas las asignaciones o una específica
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, session) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get("id");
@@ -90,10 +91,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST - Crear una nueva asignación
-export async function POST(request: NextRequest) {
+export const POST = withAdminOnly(async (request: NextRequest, session) => {
   try {
     const body = await request.json();
     
@@ -262,10 +263,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PATCH - Actualizar una asignación
-export async function PATCH(request: NextRequest) {
+export const PATCH = withAdminOnly(async (request: NextRequest, session) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get("id");
@@ -314,10 +315,10 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE - Cancelar una asignación (soft delete)
-export async function DELETE(request: NextRequest) {
+export const DELETE = withAdminOnly(async (request: NextRequest, session) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get("id");
@@ -413,4 +414,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

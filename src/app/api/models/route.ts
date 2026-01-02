@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@/generated/prisma";
 
-const prisma = new PrismaClient();
+import { withAuth, withAdminOnly } from "@/lib/api-auth";
+import prisma from "@/lib/prisma";
 
-export async function GET(request: NextRequest) {
+
+export const GET = withAuth(async (request: NextRequest, session) => {
   try {
     // Obtener todos los modelos únicos de la base de datos
     const phoneModels = await prisma.phone_model.findMany({
@@ -59,9 +60,9 @@ export async function GET(request: NextRequest) {
   } finally {
     await prisma.$disconnect();
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = withAdminOnly(async (request: NextRequest, session) => {
   try {
     const body = await request.json();
     const { brand, model, storage_gb, color } = body;
@@ -118,4 +119,4 @@ export async function POST(request: NextRequest) {
   } finally {
     await prisma.$disconnect();
   }
-}
+});

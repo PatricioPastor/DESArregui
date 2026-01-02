@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import type { TelefonosTicketsResponse, TelefonosTicketsFilters } from '@/lib/types';
 import { calculateTelefonosTicketsAnalytics, getTelefonosTicketRecords } from '@/lib/telefonos-tickets-sheets';
+import { withAuth } from '@/lib/api-auth';
 
 // Calculate analytics from database tickets
 const calculateAnalytics = (tickets: any[], filters: TelefonosTicketsFilters) => {
@@ -119,7 +120,7 @@ const calculateAnalytics = (tickets: any[], filters: TelefonosTicketsFilters) =>
   };
 };
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, session) => {
   try {
     console.log('Starting TELEFONOS_TICKETS API request...');
 
@@ -217,9 +218,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(errorResponse, { status: 500 });
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, session) => {
   try {
     console.log('Processing TELEFONOS_TICKETS POST request...');
     
@@ -251,7 +252,7 @@ export async function POST(request: NextRequest) {
       data: [],
       totalRecords: 0
     };
-    
+
     return NextResponse.json(errorResponse, { status: 500 });
   }
-}
+});

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from '@/lib/prisma';
 import type { StockRecord, InventoryStatus } from "@/lib/types";
 import { getStockRecords } from '@/lib/sheets';
+import { withAdminOnly } from '@/lib/api-auth';
 
 interface SyncRequest {
   devices: StockRecord[];
@@ -37,7 +38,7 @@ const resolveInventoryStatus = (record: StockRecord): InventoryStatus => {
   return 'NEW';
 };
 
-export async function POST(request: NextRequest) {
+export const POST = withAdminOnly(async (request: NextRequest, session) => {
   try {
     let body: SyncRequest | null = null;
 
@@ -249,4 +250,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

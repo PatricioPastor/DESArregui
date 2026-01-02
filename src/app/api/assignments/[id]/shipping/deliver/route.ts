@@ -1,12 +1,13 @@
 import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { withAdminOnly } from "@/lib/api-auth";
 
 type RouteParams = {
   id: string;
 };
 
 // POST - Finalizar envío (marcar como entregado)
-export async function POST(request: Request, context: { params: Promise<RouteParams> }) {
+export const POST = withAdminOnly(async (request: Request, session, context: { params: Promise<RouteParams> }) => {
   const { id: assignmentId } = await context.params;
 
   if (!assignmentId) {
@@ -101,5 +102,5 @@ export async function POST(request: Request, context: { params: Promise<RoutePar
       { status: 500 }
     );
   }
-}
+});
 

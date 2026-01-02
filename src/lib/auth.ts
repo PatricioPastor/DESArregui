@@ -1,87 +1,12 @@
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
+import { createAuthMiddleware, APIError } from 'better-auth/api';
+import { admin } from 'better-auth/plugins';
 import prisma from '@/lib/prisma';
+import { getUserRole } from '@/utils/user-roles';
 
-// ============================================
-// Domain Validation (Single Responsibility)
-// ============================================
-
-interface EmailDomainConfig {
-  readonly allowed: readonly string[];
-  readonly blocked: readonly string[];
-}
-
-const EMAIL_DOMAIN_CONFIG: EmailDomainConfig = {
-  allowed: ['desasa.com.ar', 'edensa.com.ar', 'edessa.com.ar', 'edesa.com.ar'],
-  blocked: ['mailinator.com', 'tempmail.com'],
-} as const;
-
-/**
- * Extracts the domain from an email address
- * @returns The domain in lowercase, or empty string if invalid
- */
-const extractEmailDomain = (email?: string | null): string => {
-  if (!email) return '';
-
-  const parts = email.split('@');
-  if (parts.length !== 2) return '';
-
-  return parts[1].toLowerCase();
-};
-
-/**
- * Validates if a domain is in the blocked list
- */
-const isBlockedDomain = (domain: string): boolean => {
-  if (!domain) return false;
-  return EMAIL_DOMAIN_CONFIG.blocked.includes(domain);
-};
-
-/**
- * Validates if a domain is in the allowed list (if list is configured)
- */
-const isAllowedDomain = (domain: string): boolean => {
-  if (!domain) return false;
-  if (EMAIL_DOMAIN_CONFIG.allowed.length === 0) return true;
-  return EMAIL_DOMAIN_CONFIG.allowed.includes(domain);
-};
-
-/**
- * Validates email domain against allow/block lists
- * @returns true if email is valid, false otherwise
- */
-export const validateEmailDomain = (email?: string | null): boolean => {
-  if (!email) return false;
-
-  const domain = extractEmailDomain(email);
-  if (!domain) return false;
-
-  // Early return for blocked domains
-  if (isBlockedDomain(domain)) return false;
-
-  // Check if domain is allowed
-  return isAllowedDomain(domain);
-};
-
-/**
- * Gets a human-readable error message for domain validation
- */
-export const getDomainValidationError = (email?: string | null): string => {
-  if (!email) return 'Email is required';
-
-  const domain = extractEmailDomain(email);
-  if (!domain) return 'Invalid email format';
-
-  if (isBlockedDomain(domain)) {
-    return `The domain "${domain}" is not allowed`;
-  }
-
-  if (!isAllowedDomain(domain)) {
-    return `Only emails from authorized domains are allowed`;
-  }
-
-  return 'Invalid email domain';
-};
+// Import email validation utilities (shared with client)
+export { validateEmailDomain, getDomainValidationError } from '@/lib/email-validation';
 
 // ============================================
 // Auth Configuration (Open/Closed Principle)
@@ -100,6 +25,7 @@ const SESSION_CONFIG: SessionConfig = {
 interface SocialProviderConfig {
   readonly clientId: string;
   readonly clientSecret: string;
+  readonly prompt?: "select_account" | "consent" | "login" | "none" | "select_account consent";
 }
 
 /**
@@ -121,6 +47,7 @@ const getGoogleProviderConfig = (): SocialProviderConfig | undefined => {
   return {
     clientId: process.env.GOOGLE_CLIENT_ID!,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    prompt: "select_account consent", 
   };
 };
 
@@ -143,32 +70,90 @@ export const auth = betterAuth({
       }
     : {},
   session: SESSION_CONFIG,
+  user: {
+    additionalFields: {
+      role: {
+        type: 'string',
+        required: false,
+        defaultValue: 'viewer',
+        input: false, // Users cannot set this during signup
+      },
+      isActive: {
+        type: 'boolean',
+        required: false,
+        defaultValue: false,
+        input: false, // Users cannot set this during signup
+      },
+    },
+  },
+  plugins: [
+    admin(),
+  ],
   hooks: {
-    // Commented hooks for domain validation
-    // Uncomment when domain validation is required
+    // Block inactive users from logging in
+    before: createAuthMiddleware(async (ctx) => {
+      // Check for sign-in attempts (both email and social)
+      if (ctx.path.startsWith('/sign-in')) {
+        const email = ctx.body?.email as string | undefined;
 
-    // before: createAuthMiddleware(async (ctx) => {
-    //   if (ctx.path === "/sign-up/email" || ctx.path === "/sign-in/email") {
-    //     const email = ctx.body?.email as string | undefined;
-    //
-    //     if (!validateEmailDomain(email)) {
-    //       throw new APIError("BAD_REQUEST", {
-    //         message: getDomainValidationError(email),
-    //       });
-    //     }
-    //   }
-    // }),
+        if (email) {
+          // Find user by email
+          const user = await prisma.user.findUnique({
+            where: { email },
+            select: { isActive: true },
+          });
 
-    // after: createAuthMiddleware(async (ctx) => {
-    //   if (ctx.path.startsWith("/sign-in/social")) {
-    //     const email = ctx.context.newSession?.user.email;
-    //
-    //     if (!validateEmailDomain(email)) {
-    //       throw new APIError("UNAUTHORIZED", {
-    //         message: getDomainValidationError(email)
-    //       });
-    //     }
-    //   }
-    // }),
+          if (user && !user.isActive) {
+            throw new APIError('UNAUTHORIZED', {
+              message: 'Your account is pending activation. Please contact an administrator.',
+            });
+          }
+        }
+      }
+    }),
+
+    // Assign role and mark new social sign-up users as inactive
+    after: createAuthMiddleware(async (ctx) => {
+      if (ctx.path.startsWith('/sign-in/social')) {
+        const newSession = ctx.context.newSession;
+
+        // Check if this is a new user (first time signing in)
+        if (newSession) {
+          const userId = newSession.user.id;
+          const userEmail = newSession.user.email;
+
+          // Check if user was just created
+          const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { isActive: true, role: true, createdAt: true },
+          });
+
+          if (user) {
+            // Auto-assign role based on email
+            const correctRole = getUserRole(userEmail);
+
+            // Update user with correct role if needed
+            if (user.role !== correctRole) {
+              await prisma.user.update({
+                where: { id: userId },
+                data: { role: correctRole },
+              });
+            }
+
+            // If user is new and inactive, block access
+            if (!user.isActive) {
+              // Invalidate the session so they can't log in
+              await prisma.session.delete({
+                where: { id: newSession.session.id },
+              });
+
+              throw new APIError('UNAUTHORIZED', {
+                message: 'Account created successfully but requires admin activation. Please contact an administrator.',
+              });
+            }
+          }
+        }
+      }
+    }),
   },
 });

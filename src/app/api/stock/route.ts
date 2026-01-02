@@ -8,6 +8,7 @@ import type {
   SOTIDeviceInfo,
 } from '@/lib/types';
 import type { device_status } from '@/generated/prisma/index';
+import { withAuth, withAdminOnly } from '@/lib/api-auth';
 
 // Constants
 const INVENTORY_HEADERS = ['modelo', 'imei', 'estado', 'distribuidora', 'asignado_a', 'ticket'] as const;
@@ -212,7 +213,7 @@ const buildStatusSummary = (records: InventoryRecord[]): InventoryStatusSummary[
   }));
 };
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, session) => {
   try {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search')?.trim();
@@ -369,9 +370,9 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = withAdminOnly(async (request: NextRequest, session) => {
   try {
     const body = await request.json();
     const { imei, modelo, distribuidora, asignado_a, ticket, purchase_id, is_backup, backup_distributor_id } = body;
@@ -513,5 +514,5 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 

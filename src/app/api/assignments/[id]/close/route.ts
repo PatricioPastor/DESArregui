@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { withAdminOnly } from "@/lib/api-auth";
 
 type RouteParams = {
   id: string;
@@ -13,7 +14,7 @@ const CloseAssignmentSchema = z.object({
 });
 
 // POST - Cerrar/finalizar una asignación activa
-export async function POST(request: Request, context: { params: Promise<RouteParams> }) {
+export const POST = withAdminOnly(async (request: Request, session, context: { params: Promise<RouteParams> }) => {
   const { id: assignmentId } = await context.params;
 
   if (!assignmentId) {
@@ -114,4 +115,4 @@ export async function POST(request: Request, context: { params: Promise<RoutePar
       { status: 500 }
     );
   }
-}
+});

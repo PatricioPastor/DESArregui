@@ -28,7 +28,10 @@
       "Bash(netstat:*)",
       "Bash(findstr:*)",
       "Bash(taskkill:*)",
-      "Bash(timeout 10 bun dev:*)"
+      "Bash(timeout 10 bun dev:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(bun install:*)"
     ],
     "deny": []
   }

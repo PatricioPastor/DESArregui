@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { device_status } from "@/generated/prisma";
 import { z } from "zod";
+import { withAdminOnly } from "@/lib/api-auth";
 
 // Schema de validación para asignación manual (sin SOTI)
 const CreateManualAssignmentSchema = z.object({
@@ -26,7 +27,7 @@ function generateShippingVoucherId(): string {
 }
 
 // POST - Crear asignación manual (para dispositivos sin SOTI)
-export async function POST(request: NextRequest) {
+export const POST = withAdminOnly(async (request: NextRequest, session) => {
   try {
     const body = await request.json();
 
@@ -189,4 +190,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

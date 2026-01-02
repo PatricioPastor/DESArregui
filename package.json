@@ -4,14 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "bunx prisma generate && next build",
-    "start": "next start"
+    "build": "next build",
+    "start": "next start",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@better-auth/cli": "^1.3.7",
     "@carbon/charts": "^1.27.0",
     "@carbon/charts-react": "^1.27.0",
-    "@prisma/client": "6.15.0",
+    "@prisma/client": "^7.4.2",
     "@prisma/extension-accelerate": "^2.0.2",
     "@react-pdf/renderer": "^4.3.0",
     "@tailwindcss/postcss": "^4.1.11",
@@ -54,7 +55,7 @@
     "postcss-loader": "^8.1.1",
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.6.13",
-    "prisma": "^6.15.0",
+    "prisma": "^7.4.2",
     "typescript": "^5.8.3"
   }
 }

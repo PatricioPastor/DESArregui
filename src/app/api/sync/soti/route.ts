@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import type { SOTIRecord } from '@/lib/types';
 import { getSotiSheetData, convertRowToSOTIRecord } from '@/lib/sheets';
+import { withAdminOnly } from '@/lib/api-auth';
 
 interface SyncRequest {
   devices: SOTIRecord[];
@@ -62,7 +63,7 @@ const upsertSOTIDevice = async (record: SOTIRecord) => {
   });
 };
 
-export async function POST(request: NextRequest) {
+export const POST = withAdminOnly(async (request: NextRequest, session) => {
   try {
     let providedDevicesCount = 0;
     try {
@@ -220,4 +221,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

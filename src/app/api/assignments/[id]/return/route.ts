@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { device_status } from "@/generated/prisma";
+import { withAdminOnly } from "@/lib/api-auth";
 
 type RouteParams = {
   id: string;
@@ -14,7 +15,7 @@ const RegisterReturnSchema = z.object({
 });
 
 // PATCH - Registrar que se recibió el dispositivo de devolución
-export async function PATCH(request: Request, context: { params: Promise<RouteParams> }) {
+export const PATCH = withAdminOnly(async (request: Request, session, context: { params: Promise<RouteParams> }) => {
   const { id: assignmentId } = await context.params;
 
   if (!assignmentId) {
@@ -142,4 +143,4 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
       { status: 500 }
     );
   }
-}
+});

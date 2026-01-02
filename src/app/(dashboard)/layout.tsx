@@ -2,10 +2,10 @@
 
 import { SidebarNavigationSimple } from "@/components/application/app-navigation/sidebar-navigation/sidebar-simple";
 import { useSession, signOut } from "@/lib/auth-client";
-import { BarChart03, Home01, Package, Phone01, Signal01 } from "@untitledui/icons";
+import { BarChart03, Home01, Package, Phone01, Signal01, Users01 } from "@untitledui/icons";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
-import { toast, Toaster } from "sonner";
+import { toast } from "sonner";
 import {
   canAccessRoute,
   filterNavigationByRole,
@@ -13,7 +13,7 @@ import {
   getUserRole,
   type NavigationItem,
 } from "@/utils/user-roles";
-import { validateEmailDomain, getDomainValidationError } from "@/lib/auth";
+import { validateEmailDomain, getDomainValidationError } from "@/lib/email-validation";
 
 // ============================================
 // Configuration (Single Responsibility)
@@ -25,6 +25,7 @@ const ALL_NAVIGATION_ITEMS: NavigationItem[] = [
   { label: "Inventario", href: "/stock", icon: Package, current: false },
   { label: "SIMS", href: "/sims", icon: Signal01, current: false },
   { label: "Reportes", href: "/reports/phones", icon: BarChart03, current: false },
+  
 ];
 
 // ============================================
@@ -154,7 +155,7 @@ export default function DashboardLayout({ children }: Readonly<DashboardLayoutPr
         {children}
       </main>
 
-      <Toaster />
+
     </div>
   );
 }

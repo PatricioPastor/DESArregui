@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import type { TelefonosTicketRecord } from '@/lib/types';
 import { parse, parseISO, isValid } from 'date-fns';
 import { getTelefonosTicketsSheetData, convertRowToTelefonosTicketRecord } from '@/lib/telefonos-tickets-sheets';
+import { withAdminOnly } from '@/lib/api-auth';
 
 interface SyncRequest {
   tickets?: TelefonosTicketRecord[];
@@ -199,7 +200,7 @@ const upsertTicket = async (record: TelefonosTicketRecord) => {
   return { result, hasInvalidLabels, invalidTags };
 };
 
-export async function POST(request: NextRequest) {
+export const POST = withAdminOnly(async (request: NextRequest, session) => {
   try {
     let providedTicketsCount = 0;
     try {
@@ -369,4 +370,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

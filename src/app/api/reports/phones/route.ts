@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
+import { withAuth } from '@/lib/api-auth';
 
-export async function GET() {
+export const GET = withAuth(async (request, session) => {
   try {
     // Execute the SQL function phones.get_monthly_consumption(2025)
     const monthlyData = [
@@ -59,4 +60,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});

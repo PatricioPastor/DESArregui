@@ -5,20 +5,23 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
   schemas  = ["main_auth", "phones", "support"]
 }
 
 model User {
-  id            String    @id
-  name          String
-  email         String    @unique
-  emailVerified Boolean
-  image         String?
-  createdAt     DateTime
-  updatedAt     DateTime
-  accounts      Account[]
-  sessions      Session[]
+  id               String      @id
+  name             String
+  email            String      @unique
+  emailVerified    Boolean
+  image            String?
+  createdAt        DateTime
+  updatedAt        DateTime
+  role             String?     @default("viewer")
+  isActive         Boolean     @default(false)
+  twoFactorEnabled Boolean?
+  accounts         Account[]
+  sessions         Session[]
+  twoFactors       TwoFactor[]
 
   @@map("user")
   @@schema("main_auth")
@@ -68,6 +71,17 @@ model Verification {
   updatedAt  DateTime? @updatedAt
 
   @@map("verification")
+  @@schema("main_auth")
+}
+
+model TwoFactor {
+  id        String   @id
+  secret    String
+  backupCodes String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("twoFactor")
   @@schema("main_auth")
 }
 

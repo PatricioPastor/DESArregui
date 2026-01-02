@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { withAuth } from '@/lib/api-auth';
 
 interface EnhancedKpisResponse {
   kpis: {
@@ -36,7 +37,7 @@ interface EnhancedKpisResponse {
   };
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, session) => {
   try {
     const { searchParams } = request.nextUrl;
     const startDate = searchParams.get('start_date') || '2025-04-01';
@@ -89,4 +90,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

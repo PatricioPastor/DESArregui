@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { withAdminOnly } from "@/lib/api-auth";
 
 type RouteParams = {
   id: string;
@@ -13,7 +14,7 @@ const UpdateShippingSchema = z.object({
 });
 
 // PATCH - Actualizar estado de envío de una asignación
-export async function PATCH(request: Request, context: { params: Promise<RouteParams> }) {
+export const PATCH = withAdminOnly(async (request: Request, session, context: { params: Promise<RouteParams> }) => {
   const { id: assignmentId } = await context.params;
 
   if (!assignmentId) {
@@ -115,4 +116,4 @@ export async function PATCH(request: Request, context: { params: Promise<RoutePa
       { status: 500 }
     );
   }
-}
+});

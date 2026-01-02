@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import type { SimRecordInput, SimSyncResponse } from '@/lib/types';
 import { parseEmpresa, validateSimRecord } from '@/lib/sim-utils';
+import { withAdminOnly } from '@/lib/api-auth';
 
 interface SyncRequest {
   sims: SimRecordInput[];
@@ -196,7 +197,7 @@ const batchUpsertSims = async (
   return { created, updated };
 };
 
-export async function POST(request: NextRequest) {
+export const POST = withAdminOnly(async (request: NextRequest, session) => {
   try {
     let providedSimsCount = 0;
     let incomingSims: SimRecordInput[] = [];
@@ -445,4 +446,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
