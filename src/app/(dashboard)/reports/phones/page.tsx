@@ -24,10 +24,10 @@ const getStockStandard = (models:any[]) => {
 
 // Quarter options
 const quarterOptions = [
-    { id: "Q1", label: "Q1 2025", value: "Q1" },
-    { id: "Q2", label: "Q2 2025", value: "Q2" },
-    { id: "Q3", label: "Q3 2025", value: "Q3" },
-    { id: "Q4", label: "Q4 2025", value: "Q4" },
+    { id: "Q1", label: "Q1 2026", value: "Q1" },
+    { id: "Q2", label: "Q2 2026", value: "Q2" },
+    { id: "Q3", label: "Q3 2026", value: "Q3" },
+    { id: "Q4", label: "Q4 2026", value: "Q4" },
     { id: "custom", label: "Personalizado", value: "custom" },
 ];
 
@@ -234,20 +234,20 @@ export default function TelefonosTicketsDashboard() {
                         label: "Cobertura Estimada",
                         value: (() => {
                             if (!data?.kpis.assignments || !data?.period.days || !data?.stock.models) return "N/A";
-                            
+
                             // Buscar específicamente los A16
-                            const a16Model = data.stock.models.find(model => 
+                            const a16Model = data.stock.models.find(model =>
                                 model.model.toLowerCase().includes('a16')
                             );
-                            
+
                             if (!a16Model || a16Model.count === 0) return "N/A";
-                            
+
                             // Usar valor fijo estimativo de 24 asignaciones por mes
                             const consumoMensualEstimado = 24;
-                            
+
                             // Calcular meses de cobertura: Stock A16 / Consumo mensual estimado
                             const mesesCobertura = Math.floor(a16Model.count / consumoMensualEstimado);
-                            
+
                             return `${mesesCobertura} meses`;
                         })(),
                         description: "Meses de cobertura con stock A16 (estimado 24/mes)"
