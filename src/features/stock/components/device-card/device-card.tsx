@@ -140,7 +140,8 @@ export function DeviceCard({
             color="secondary"
             tooltip={
               record.soti_info?.is_in_soti
-                ? "Asignar dispositivo (con datos SOTI)"
+                 ? "Asignar dispositivo (con datos externos)"
+
                 : "Asignar dispositivo manualmente"
             }
             icon={Send01}

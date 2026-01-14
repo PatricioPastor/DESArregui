@@ -1,161 +1,171 @@
 "use client";
 
-import { SidebarNavigationSimple } from "@/components/application/app-navigation/sidebar-navigation/sidebar-simple";
-import { useSession, signOut } from "@/lib/auth-client";
-import { BarChart03, Home01, Package, Phone01, Signal01, Users01 } from "@untitledui/icons";
+import { useEffect, useMemo, useState } from "react";
+import { BarChart03, Home01, Package, Signal01, Users01 } from "@untitledui/icons";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
-import {
-  canAccessRoute,
-  filterNavigationByRole,
-  getUnauthorizedMessage,
-  getUserRole,
-  type NavigationItem,
-} from "@/utils/user-roles";
-import { validateEmailDomain, getDomainValidationError } from "@/lib/email-validation";
+import { SidebarNavigationSimple } from "@/components/application/app-navigation/sidebar-navigation/sidebar-simple";
+import { signOut, useSession } from "@/lib/auth-client";
+import { type GranularRoleName, canAccessPathWithRoles, getFirstAllowedModulePath } from "@/lib/iam/permissions";
 
-// ============================================
-// Configuration (Single Responsibility)
-// ============================================
+type NavigationItem = {
+    label: string;
+    href: string;
+    icon: any;
+    current: boolean;
+    requiredRole?: GranularRoleName;
+    adminOnly?: boolean;
+};
+
+type MeRolesData = {
+    isAdmin: boolean;
+    roleNames: string[];
+    firstAllowedPath: string | null;
+};
 
 const ALL_NAVIGATION_ITEMS: NavigationItem[] = [
-  { label: "Mesa de entrada", href: "/", icon: Home01, current: false },
-  { label: "SOTI", href: "/soti", icon: Phone01, current: false },
-  { label: "Inventario", href: "/stock", icon: Package, current: false },
-  { label: "SIMS", href: "/sims", icon: Signal01, current: false },
-  { label: "Reportes", href: "/reports/phones", icon: BarChart03, current: false },
-  
+    { label: "Mesa de entrada", href: "/", icon: Home01, current: false },
+    { label: "Inventario", href: "/stock", icon: Package, current: false, requiredRole: "stock-viewer" },
+    { label: "SIMS", href: "/sims", icon: Signal01, current: false, requiredRole: "sims-viewer" },
+    { label: "Reportes", href: "/reports/phones", icon: BarChart03, current: false, requiredRole: "report-viewer" },
+    { label: "IAM", href: "/iam/users", icon: Users01, current: false, adminOnly: true },
 ];
 
-// ============================================
-// Authentication Utilities (Single Responsibility)
-// ============================================
-
-/**
- * Handles unauthorized domain access
- */
-const handleUnauthorizedDomain = (
-  email: string,
-  router: ReturnType<typeof useRouter>
-): void => {
-  const errorMessage = getDomainValidationError(email);
-
-  toast.error('Dominio no permitido', {
-    description: errorMessage,
-  });
-
-  signOut();
-  router.replace('/login');
-};
-
-/**
- * Handles unauthorized route access
- */
-const handleUnauthorizedRoute = (
-  email: string,
-  pathname: string,
-  router: ReturnType<typeof useRouter>
-): void => {
-  const errorMessage = getUnauthorizedMessage(email, pathname);
-
-  toast.error('Acceso denegado', {
-    description: errorMessage,
-  });
-
-  // Redirect based on user role
-  const role = getUserRole(email);
-
-  if (role === 'sims-viewer') {
-    router.replace('/sims');
-  } else {
-    router.replace('/reports/phones');
-  }
-};
-
-// ============================================
-// Loading Component (Single Responsibility)
-// ============================================
-
 const AuthLoadingScreen = () => (
-  <div className="w-full min-h-dvh flex items-center justify-center bg-[#0a0a0a]">
-    <div className="text-center">
-      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-brand mb-3" />
-      <p className="text-gray-400">Verificando autenticación...</p>
+    <div className="flex min-h-dvh w-full items-center justify-center bg-[#0a0a0a]">
+        <div className="text-center">
+            <div className="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-b-2 border-brand" />
+            <p className="text-gray-400">Verificando autenticación...</p>
+        </div>
     </div>
-  </div>
 );
 
-// ============================================
-// Main Layout Component
-// ============================================
-
 interface DashboardLayoutProps {
-  children: React.ReactNode;
+    children: React.ReactNode;
 }
 
 export default function DashboardLayout({ children }: Readonly<DashboardLayoutProps>) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const { data: session, isPending } = useSession();
+    const pathname = usePathname();
+    const router = useRouter();
+    const { data: session, isPending } = useSession();
 
-  // Filter navigation items based on user role (memoized for performance)
-  const filteredNavigation = useMemo(() => {
-    const userEmail = session?.user?.email;
-    return filterNavigationByRole(ALL_NAVIGATION_ITEMS, userEmail);
-  }, [session?.user?.email]);
+    const [meRoles, setMeRoles] = useState<MeRolesData | null>(null);
+    const [rolesLoading, setRolesLoading] = useState(true);
 
-  // Handle authentication and authorization
-  useEffect(() => {
-    // Early return: Wait until session check is complete
-    if (isPending) return;
+    useEffect(() => {
+        if (isPending) return;
 
-    // Early return: No session, redirect to login
+        if (!session?.user) {
+            router.replace("/login");
+        }
+    }, [isPending, router, session?.user]);
+
+    useEffect(() => {
+        const loadMeRoles = async () => {
+            try {
+                setRolesLoading(true);
+
+                const response = await fetch("/api/iam/me/roles");
+
+                if (response.status === 401) {
+                    router.replace("/login");
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error("Failed to load roles");
+                }
+
+                const json = (await response.json()) as { data?: MeRolesData };
+
+                setMeRoles(json.data ?? null);
+            } catch (error) {
+                console.error("Error loading IAM roles:", error);
+                toast.error("Error", {
+                    description: "No se pudieron cargar los permisos del usuario.",
+                });
+
+                signOut();
+                router.replace("/login");
+            } finally {
+                setRolesLoading(false);
+            }
+        };
+
+        if (!session?.user) return;
+
+        void loadMeRoles();
+    }, [router, session?.user]);
+
+    const filteredNavigation = useMemo(() => {
+        if (!meRoles) {
+            return [];
+        }
+
+        if (meRoles.isAdmin) {
+            return ALL_NAVIGATION_ITEMS;
+        }
+
+        if (meRoles.roleNames.length === 0) {
+            return [];
+        }
+
+        return ALL_NAVIGATION_ITEMS.filter((item) => {
+            if (item.adminOnly) {
+                return false;
+            }
+
+            if (!item.requiredRole) {
+                return true;
+            }
+
+            return meRoles.roleNames.includes(item.requiredRole);
+        });
+    }, [meRoles]);
+
+    useEffect(() => {
+        if (rolesLoading || !meRoles) return;
+
+        if (meRoles.isAdmin) {
+            // Admin can access everything, but keep /iam/pending clean.
+            if (pathname.startsWith("/iam/pending")) {
+                router.replace(meRoles.firstAllowedPath ?? "/");
+            }
+            return;
+        }
+
+        if (meRoles.roleNames.length === 0) {
+            if (!pathname.startsWith("/iam/pending")) {
+                router.replace("/iam/pending");
+            }
+            return;
+        }
+
+        if (pathname.startsWith("/iam/pending")) {
+            const redirectTo = meRoles.firstAllowedPath ?? getFirstAllowedModulePath(meRoles.roleNames) ?? "/";
+            router.replace(redirectTo);
+            return;
+        }
+
+        if (!canAccessPathWithRoles(pathname, meRoles.roleNames)) {
+            const redirectTo = meRoles.firstAllowedPath ?? getFirstAllowedModulePath(meRoles.roleNames) ?? "/";
+            router.replace(redirectTo);
+        }
+    }, [meRoles, pathname, rolesLoading, router]);
+
+    if (isPending || rolesLoading) {
+        return <AuthLoadingScreen />;
+    }
+
     if (!session?.user) {
-      router.replace('/login');
-      return;
+        return null;
     }
 
-    const userEmail = session.user.email;
+    return (
+        <div className="relative min-h-dvh w-full">
+            <SidebarNavigationSimple items={filteredNavigation} activeUrl={pathname} />
 
-    // Early return: Invalid email
-    if (!userEmail) {
-      router.replace('/login');
-      return;
-    }
-
-    // Validate domain (optional, can be enabled if needed)
-    // if (!validateEmailDomain(userEmail)) {
-    //   handleUnauthorizedDomain(userEmail, router);
-    //   return;
-    // }
-
-    // Check route access
-    if (!canAccessRoute(userEmail, pathname)) {
-      handleUnauthorizedRoute(userEmail, pathname, router);
-      return;
-    }
-  }, [session, isPending, pathname, router]);
-
-  // Show loading screen while checking authentication
-  if (isPending) {
-    return <AuthLoadingScreen />;
-  }
-
-  // Early return: No session (will be handled by useEffect)
-  if (!session?.user) {
-    return null;
-  }
-
-  return (
-    <div className="relative min-h-dvh w-full">
-      <SidebarNavigationSimple items={filteredNavigation} activeUrl={pathname} />
-
-      <main className="w-full max-h-screen px-4 py-6 sm:px-6 max-w-[1366px] lg:max-w-9xl mx-auto lg:pl-[312px]">
-        {children}
-      </main>
-
-
-    </div>
-  );
+            <main className="lg:max-w-9xl mx-auto max-h-screen w-full max-w-[1366px] px-4 py-6 sm:px-6 lg:pl-[312px]">{children}</main>
+        </div>
+    );
 }

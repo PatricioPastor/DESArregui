@@ -2,25 +2,23 @@
 
 import { useState } from "react";
 import { ArrowCircleRight, Box, HeartHand, Plus, Stars02 } from "@untitledui/icons";
+import { toast } from "sonner";
 import { DateRangePicker } from "@/components/application/date-picker/date-range-picker";
 import { Button } from "@/components/base/buttons/button";
 import { Select } from "@/components/base/select/select";
 import { KpiCardWithModal } from "@/components/dashboard/kpi-card-with-modal";
 import { SyncTicketsButton } from "@/components/dashboard/sync-tickets-button";
-import { PhoneTicketsChart } from "./components/phone-tickets-chart";
-import { TicketsTable } from "./components/tickets-table";
-import { ReplacementTypesCard } from "./components/replacement-types-card";
 import { usePhonesSummary } from "@/hooks/use-phones-summary";
 import { useSession } from "@/lib/auth-client";
-import { isAdmin } from "@/utils/user-roles";
-import { toast } from "sonner";
+import { PhoneTicketsChart } from "./components/phone-tickets-chart";
+import { ReplacementTypesCard } from "./components/replacement-types-card";
+import { TicketsTable } from "./components/tickets-table";
 
-
-const getStockStandard = (models:any[]) => {
-    const standard = models.find(m => m.model === "A16");
+const getStockStandard = (models: any[]) => {
+    const standard = models.find((m) => m.model === "A16");
 
     return standard ? standard.count : 0;
-}
+};
 
 // Quarter options
 const quarterOptions = [
@@ -51,37 +49,33 @@ const getQuarterDateRange = (quarter: string): { start: string; end: string } =>
 
 export default function TelefonosTicketsDashboard() {
     const [selectedQuarter, setSelectedQuarter] = useState<string>("Q2");
-    const [dateRange, setDateRange] = useState<{start?: string; end?: string}>(
-        getQuarterDateRange("Q2")
-    );
+    const [dateRange, setDateRange] = useState<{ start?: string; end?: string }>(getQuarterDateRange("Q2"));
     const { data: session } = useSession();
-    const isAdminUser = isAdmin(session?.user?.email);
+    const isAdminUser = session?.user?.role === "admin";
 
     const { data, loading, error, refetch } = usePhonesSummary({
         startDate: dateRange.start,
-        endDate: dateRange.end
+        endDate: dateRange.end,
     });
 
     // Calcular métricas derivadas
-    const assignmentsPercentage = data?.kpis.total_demand
-        ? ((data.kpis.assignments / data.kpis.total_demand) * 100).toFixed(1)
-        : "0";
+    const assignmentsPercentage = data?.kpis.total_demand ? ((data.kpis.assignments / data.kpis.total_demand) * 100).toFixed(1) : "0";
 
     const replacementsPercentage = data?.kpis.replacement_rate?.toFixed(1) || "0";
 
     const totalSolicitudes = (data?.kpis.total_demand || 0) + (data?.kpis.pending_demand || 0);
-    const pendingPercentage = totalSolicitudes > 0
-        ? (((data?.kpis.pending_demand || 0) / totalSolicitudes) * 100).toFixed(0)
-        : "0";
+    const pendingPercentage = totalSolicitudes > 0 ? (((data?.kpis.pending_demand || 0) / totalSolicitudes) * 100).toFixed(0) : "0";
 
     const kpiConfigs = [
         {
             label: "Solicitudes",
             icon: HeartHand,
             value: loading ? "..." : totalSolicitudes,
-            subtitle: loading ? "" : (data?.kpis.pending_demand || 0) > 0
-                ? `${data?.kpis.pending_demand} pendientes de entrega (${pendingPercentage}%)`
-                : `${data?.kpis.total_tickets} tickets generados`,
+            subtitle: loading
+                ? ""
+                : (data?.kpis.pending_demand || 0) > 0
+                  ? `${data?.kpis.pending_demand} pendientes de entrega (${pendingPercentage}%)`
+                  : `${data?.kpis.total_tickets} tickets generados`,
             modalContent: {
                 title: "Total de Teléfonos Solicitados",
                 description: `Demanda total de teléfonos durante el período ${dateRange.start} a ${dateRange.end}`,
@@ -89,43 +83,39 @@ export default function TelefonosTicketsDashboard() {
                     {
                         label: "Total Solicitado",
                         value: totalSolicitudes,
-                        description: "Suma de teléfonos entregados + pendientes"
+                        description: "Suma de teléfonos entregados + pendientes",
                     },
                     {
                         label: "Teléfonos Entregados",
                         value: data?.kpis.total_demand || 0,
-                        description: "Equipos ya entregados a los usuarios"
+                        description: "Equipos ya entregados a los usuarios",
                     },
                     {
                         label: "Pendientes de Entrega",
                         value: data?.kpis.pending_demand || 0,
-                        description: "Equipos en proceso de entrega"
+                        description: "Equipos en proceso de entrega",
                     },
                     {
                         label: "Tickets Procesados",
                         value: data?.kpis.total_tickets || 0,
-                        description: "Cantidad de tickets de teléfonos en el período"
+                        description: "Cantidad de tickets de teléfonos en el período",
                     },
                     {
                         label: "Promedio por Ticket",
-                        value: data?.kpis.total_tickets
-                            ? ((totalSolicitudes / data.kpis.total_tickets).toFixed(2))
-                            : 0,
-                        description: "Teléfonos promedio por ticket"
-                    }
+                        value: data?.kpis.total_tickets ? (totalSolicitudes / data.kpis.total_tickets).toFixed(2) : 0,
+                        description: "Teléfonos promedio por ticket",
+                    },
                 ],
                 insights: [
-                    `Promedio de ${data?.kpis.total_tickets && data?.period.days ? (data.kpis.total_tickets / data.period.days * 30).toFixed(1) : 0} tickets por mes`,
+                    `Promedio de ${data?.kpis.total_tickets && data?.period.days ? ((data.kpis.total_tickets / data.period.days) * 30).toFixed(1) : 0} tickets por mes`,
                     (data?.kpis.pending_demand || 0) > 0
                         ? `${data!.kpis.pending_demand} teléfonos esperando entrega (${pendingPercentage}% del total)`
                         : "Todos los teléfonos han sido entregados",
                     `${assignmentsPercentage}% son asignaciones nuevas`,
                     `${replacementsPercentage}% son recambios de equipos`,
-                    totalSolicitudes > 80
-                        ? "Demanda alta - Revisar niveles de stock"
-                        : "Demanda dentro de rangos normales"
-                ]
-            }
+                    totalSolicitudes > 80 ? "Demanda alta - Revisar niveles de stock" : "Demanda dentro de rangos normales",
+                ],
+            },
         },
         {
             label: "Recambios",
@@ -139,36 +129,32 @@ export default function TelefonosTicketsDashboard() {
                     {
                         label: "Total Recambios",
                         value: data?.kpis.replacements || 0,
-                        description: "Equipos entregados como reemplazo"
+                        description: "Equipos entregados como reemplazo",
                     },
                     {
                         label: "Tasa de Recambio",
                         value: `${replacementsPercentage}%`,
-                        description: "Porcentaje del total de solicitudes"
+                        description: "Porcentaje del total de solicitudes",
                     },
                     {
                         label: "Vs Asignaciones",
-                        value: data?.kpis.replacements && data?.kpis.assignments
-                            ? `${(data.kpis.replacements / data.kpis.assignments).toFixed(1)}x`
-                            : "N/A",
-                        description: "Ratio recambios/asignaciones"
+                        value: data?.kpis.replacements && data?.kpis.assignments ? `${(data.kpis.replacements / data.kpis.assignments).toFixed(1)}x` : "N/A",
+                        description: "Ratio recambios/asignaciones",
                     },
                     {
                         label: "Promedio Mensual",
-                        value: data?.period.days
-                            ? Math.round((data.kpis.replacements / data.period.days) * 30)
-                            : 0,
-                        description: "Estimación mensual de recambios"
-                    }
+                        value: data?.period.days ? Math.round((data.kpis.replacements / data.period.days) * 30) : 0,
+                        description: "Estimación mensual de recambios",
+                    },
                 ],
                 insights: [
                     parseFloat(replacementsPercentage) > 70
                         ? "Alta tasa de recambios - Revisar calidad de dispositivos"
                         : "Tasa de recambios dentro de lo esperado",
                     `Se reemplazan ${data?.kpis.replacements && data?.kpis.assignments ? (data.kpis.replacements / data.kpis.assignments).toFixed(1) : 0} equipos por cada asignación nueva`,
-                    "Mantener stock de modelos más solicitados para recambios"
-                ]
-            }
+                    "Mantener stock de modelos más solicitados para recambios",
+                ],
+            },
         },
         {
             label: "Nuevas Asignaciones",
@@ -182,34 +168,30 @@ export default function TelefonosTicketsDashboard() {
                     {
                         label: "Total Asignaciones",
                         value: data?.kpis.assignments || 0,
-                        description: "Equipos asignados en el período"
+                        description: "Equipos asignados en el período",
                     },
                     {
                         label: "% del Total",
                         value: `${assignmentsPercentage}%`,
-                        description: "Porcentaje de asignaciones nuevas"
+                        description: "Porcentaje de asignaciones nuevas",
                     },
                     {
                         label: "Stock Consumido",
                         value: data?.kpis.assignments || 0,
-                        description: "Dispositivos que salieron del inventario"
+                        description: "Dispositivos que salieron del inventario",
                     },
                     {
                         label: "Proyección Mensual",
-                        value: data?.period.days
-                            ? Math.round((data.kpis.assignments / data.period.days) * 30)
-                            : 0,
-                        description: "Estimación de asignaciones por mes"
-                    }
+                        value: data?.period.days ? Math.round((data.kpis.assignments / data.period.days) * 30) : 0,
+                        description: "Estimación de asignaciones por mes",
+                    },
                 ],
                 insights: [
                     `Impacto en stock: -${data?.kpis.assignments || 0} dispositivos`,
-                    parseFloat(assignmentsPercentage) > 40
-                        ? "Alta actividad de asignaciones - Posible crecimiento del equipo"
-                        : "Nivel normal de asignaciones",
-                    `Ratio asignación/recambio: 1:${data?.kpis.replacements && data?.kpis.assignments ? (data.kpis.replacements / data.kpis.assignments).toFixed(1) : 0}`
-                ]
-            }
+                    parseFloat(assignmentsPercentage) > 40 ? "Alta actividad de asignaciones - Posible crecimiento del equipo" : "Nivel normal de asignaciones",
+                    `Ratio asignación/recambio: 1:${data?.kpis.replacements && data?.kpis.assignments ? (data.kpis.replacements / data.kpis.assignments).toFixed(1) : 0}`,
+                ],
+            },
         },
         {
             label: "Stock",
@@ -223,12 +205,12 @@ export default function TelefonosTicketsDashboard() {
                     {
                         label: "Dispositivos NEW",
                         value: data?.stock.available || 0,
-                        description: "Equipos disponibles para asignar"
+                        description: "Equipos disponibles para asignar",
                     },
                     {
                         label: "Modelos Únicos",
                         value: data?.stock.models?.length || 0,
-                        description: "Variedad de modelos en stock"
+                        description: "Variedad de modelos en stock",
                     },
                     {
                         label: "Cobertura Estimada",
@@ -236,9 +218,7 @@ export default function TelefonosTicketsDashboard() {
                             if (!data?.kpis.assignments || !data?.period.days || !data?.stock.models) return "N/A";
 
                             // Buscar específicamente los A16
-                            const a16Model = data.stock.models.find(model =>
-                                model.model.toLowerCase().includes('a16')
-                            );
+                            const a16Model = data.stock.models.find((model) => model.model.toLowerCase().includes("a16"));
 
                             if (!a16Model || a16Model.count === 0) return "N/A";
 
@@ -250,17 +230,13 @@ export default function TelefonosTicketsDashboard() {
 
                             return `${mesesCobertura} meses`;
                         })(),
-                        description: "Meses de cobertura con stock A16 (estimado 24/mes)"
+                        description: "Meses de cobertura con stock A16 (estimado 24/mes)",
                     },
                     {
                         label: "Top Modelo",
-                        value: data?.stock.models?.[0]
-                            ? `${data.stock.models[0].brand} ${data.stock.models[0].model}`
-                            : "N/A",
-                        description: data?.stock.models?.[0]
-                            ? `${data.stock.models[0].count} unidades disponibles`
-                            : ""
-                    }
+                        value: data?.stock.models?.[0] ? `${data.stock.models[0].brand} ${data.stock.models[0].model}` : "N/A",
+                        description: data?.stock.models?.[0] ? `${data.stock.models[0].count} unidades disponibles` : "",
+                    },
                 ],
                 // insights: [
                 //     (data?.stock.available || 0) < 50
@@ -273,8 +249,8 @@ export default function TelefonosTicketsDashboard() {
                 //         ? `Modelo más disponible: ${data.stock.models[0].brand} ${data.stock.models[0].model} (${data.stock.models[0].count} unidades)`
                 //         : "Sin información de modelos"
                 // ]
-            }
-        }
+            },
+        },
     ];
 
     if (error) {
@@ -296,7 +272,7 @@ export default function TelefonosTicketsDashboard() {
             <header className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                 <div className="flex flex-col gap-1">
                     <h1 className="text-2xl font-semibold tracking-tight">Teléfonos</h1>
-                    <p className="text-sm text-muted-foreground">Dashboard con demanda de teléfonos y previsión</p>
+                    <p className="text-muted-foreground text-sm">Dashboard con demanda de teléfonos y previsión</p>
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
@@ -320,11 +296,7 @@ export default function TelefonosTicketsDashboard() {
                             items={quarterOptions}
                             className="w-full min-w-0 sm:w-48 sm:min-w-48 lg:w-56"
                         >
-                            {(item) => (
-                                <Select.Item id={item.id}>
-                                    {item.label}
-                                </Select.Item>
-                            )}
+                            {(item) => <Select.Item id={item.id}>{item.label}</Select.Item>}
                         </Select>
                     </div>
 
@@ -344,12 +316,7 @@ export default function TelefonosTicketsDashboard() {
                     </div>
 
                     <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-                        {isAdminUser && (
-                            <SyncTicketsButton
-                                className="w-full justify-center sm:w-auto"
-                                onSyncComplete={() => refetch()}
-                            />
-                        )}
+                        {isAdminUser && <SyncTicketsButton className="w-full justify-center sm:w-auto" onSyncComplete={() => refetch()} />}
                         <Button
                             color="secondary"
                             iconLeading={Stars02}
@@ -373,26 +340,15 @@ export default function TelefonosTicketsDashboard() {
             {/* Chart */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <div className="col-span-1 h-[260px] rounded-lg border border-surface bg-surface-1 sm:h-[320px] lg:col-span-3">
-                    <PhoneTicketsChart
-                        monthlyData={data?.monthly_data}
-                        loading={loading}
-                    />
+                    <PhoneTicketsChart monthlyData={data?.monthly_data} loading={loading} />
                 </div>
             </div>
 
             {/* Replacement Types */}
-            <ReplacementTypesCard
-                replacementTypes={data?.replacement_types}
-                loading={loading}
-                isAdmin={isAdminUser}
-            />
+            <ReplacementTypesCard replacementTypes={data?.replacement_types} loading={loading} isAdmin={isAdminUser} />
 
             {/* Tickets Table */}
-            <TicketsTable
-                tickets={data?.tickets || []}
-                loading={loading}
-                description={`Período: ${dateRange.start} - ${dateRange.end}`}
-            />
+            <TicketsTable tickets={data?.tickets || []} loading={loading} description={`Período: ${dateRange.start} - ${dateRange.end}`} />
         </section>
     );
 }

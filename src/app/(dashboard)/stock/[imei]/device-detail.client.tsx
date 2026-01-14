@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -7,7 +7,7 @@ import { Tabs } from "@/components/application/tabs/tabs";
 import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
 import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icons";
-import { Send01, UploadCloud02, User01, Building02, File01, Clock, Package, UserPlus01, Trash01, CheckCircle, Eye, PackageCheck, RefreshCw01 } from "@untitledui/icons";
+import { Send01, User01, Building02, File01, Clock, Package, UserPlus01, Trash01, CheckCircle, Eye, PackageCheck, RefreshCw01 } from "@untitledui/icons";
 import { cx } from "@/utils/cx";
 import type { DeviceDetail } from "@/lib/stock-detail";
 import { formatInventoryDate } from "@/lib/inventory-utils";
@@ -51,7 +51,7 @@ export function DeviceDetailClient({ detail, statusLabel, statusColor, canManual
     return_status?: string | null;
     return_device_imei?: string | null;
   } | null>(null);
-  const { inventory, assignments, tickets, soti_device: sotiDevice, purchase } = detail;
+  const { inventory, assignments, tickets, purchase } = detail;
   const currentAssignment =
     assignments.find((assignment) => (assignment.status || "").toLowerCase() === "active") ||
     assignments[0] ||
@@ -86,14 +86,6 @@ export function DeviceDetailClient({ detail, statusLabel, statusColor, canManual
       value: currentAssignment?.shipping_voucher_id || "Sin generar",
       icon: Send01,
       color: currentAssignment?.shipping_voucher_id ? "brand" : "gray",
-    },
-    {
-      id: "soti",
-      label: "Ultima sincronizacion SOTI",
-      value: formatInventoryDate(sotiDevice?.last_sync),
-      icon: UploadCloud02,
-      color: sotiDevice?.is_active ? "brand" : "gray",
-      description: sotiDevice?.assigned_user ? `Usuario SOTI: ${sotiDevice.assigned_user}` : undefined,
     },
     {
       id: "actualizado",
@@ -273,41 +265,6 @@ export function DeviceDetailClient({ detail, statusLabel, statusColor, canManual
               </dl>
             </div>
 
-            <div className="rounded-lg border border-secondary bg-surface-1 p-4 shadow-xs">
-              <h2 className="text-sm font-semibold text-secondary">Informacion SOTI</h2>
-              {sotiDevice ? (
-                <dl className="mt-4 space-y-3 text-sm text-tertiary">
-                  <div className="flex gap-2">
-                    <dt className="w-32 text-secondary">Nombre</dt>
-                    <dd className="text-primary">{sotiDevice.device_name}</dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="w-32 text-secondary">Usuario</dt>
-                    <dd>{sotiDevice.assigned_user || "Sin usuario"}</dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="w-32 text-secondary">Estado</dt>
-                    <dd>{sotiDevice.status}</dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="w-32 text-secondary">Ruta</dt>
-                    <dd>{sotiDevice.route || "-"}</dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="w-32 text-secondary">Ultima sync</dt>
-                    <dd>{formatInventoryDate(sotiDevice.last_sync)}</dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="w-32 text-secondary">Ubicacion</dt>
-                    <dd>{sotiDevice.location || "Sin datos"}</dd>
-                  </div>
-                </dl>
-              ) : (
-                <p className="mt-4 text-sm text-tertiary">
-                  Este IMEI aun no se encuentra registrado en SOTI.
-                </p>
-              )}
-            </div>
           </div>
         </Tabs.Panel>
 
