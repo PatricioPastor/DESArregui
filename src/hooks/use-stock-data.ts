@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type {
-    InventoryModelOption,
-    InventoryRecord,
-    InventoryResponse,
-    InventoryStatusSummary,
-} from "@/lib/types";
+import type { InventoryModelOption, InventoryRecord, InventoryResponse, InventoryStatusSummary } from "@/lib/types";
 
 interface UseStockDataReturn {
     data: InventoryRecord[];
@@ -16,7 +11,16 @@ interface UseStockDataReturn {
     refresh: () => Promise<void>;
 }
 
-export function useStockData(autoRefreshMs: number = 15 * 60 * 1000): UseStockDataReturn {
+export function useStockData(
+    autoRefreshMs: number = 15 * 60 * 1000,
+    options?: {
+        summary?: boolean;
+        enabled?: boolean;
+    },
+): UseStockDataReturn {
+    const summary = options?.summary === true;
+    const enabled = options?.enabled !== false;
+
     const [data, setData] = useState<InventoryRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -24,42 +28,49 @@ export function useStockData(autoRefreshMs: number = 15 * 60 * 1000): UseStockDa
     const [totalRecords, setTotalRecords] = useState(0);
     const [statusSummary, setStatusSummary] = useState<InventoryStatusSummary[]>([]);
 
-    const fetchData = useCallback(async (searchQuery?: string) => {
-        try {
-            setError(null);
-            const url = new URL("/api/stock", window.location.origin);
-            if (searchQuery && searchQuery.trim()) {
-                url.searchParams.set("search", searchQuery.trim());
+    const fetchData = useCallback(
+        async (searchQuery?: string) => {
+            try {
+                setError(null);
+                const url = new URL("/api/stock", window.location.origin);
+                if (searchQuery && searchQuery.trim()) {
+                    url.searchParams.set("search", searchQuery.trim());
+                }
+
+                if (summary) {
+                    url.searchParams.set("summary", "true");
+                }
+
+                const response = await fetch(url.toString(), {
+                    headers: {
+                        "Cache-Control": "no-cache",
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result: InventoryResponse = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error || "Failed to fetch stock data");
+                }
+
+                setData(result.data || []);
+                setTotalRecords(result.totalRecords || 0);
+                setStatusSummary(result.statusSummary || []);
+                setLastUpdated(result.lastUpdated || null);
+            } catch (err) {
+                const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
+                setError(errorMessage);
+                console.error("Error fetching stock data:", err);
+            } finally {
+                setIsLoading(false);
             }
-
-            const response = await fetch(url.toString(), {
-                headers: {
-                    "Cache-Control": "no-cache",
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const result: InventoryResponse = await response.json();
-
-            if (!result.success) {
-                throw new Error(result.error || "Failed to fetch stock data");
-            }
-
-            setData(result.data || []);
-            setTotalRecords(result.totalRecords || 0);
-            setStatusSummary(result.statusSummary || []);
-            setLastUpdated(result.lastUpdated || null);
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
-            setError(errorMessage);
-            console.error("Error fetching stock data:", err);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
+        },
+        [summary],
+    );
 
     const refresh = useCallback(async () => {
         setIsLoading(true);
@@ -68,11 +79,18 @@ export function useStockData(autoRefreshMs: number = 15 * 60 * 1000): UseStockDa
 
     // Initial data fetch
     useEffect(() => {
+        if (!enabled) {
+            setIsLoading(false);
+            setError(null);
+            return;
+        }
+
         fetchData();
-    }, [fetchData]);
+    }, [enabled, fetchData]);
 
     // Auto-refresh timer
     useEffect(() => {
+        if (!enabled) return;
         if (autoRefreshMs <= 0) return;
 
         const interval = setInterval(() => {
@@ -80,7 +98,7 @@ export function useStockData(autoRefreshMs: number = 15 * 60 * 1000): UseStockDa
         }, autoRefreshMs);
 
         return () => clearInterval(interval);
-    }, [autoRefreshMs, fetchData]);
+    }, [autoRefreshMs, enabled, fetchData]);
 
     return {
         data,

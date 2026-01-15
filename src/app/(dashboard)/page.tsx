@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowCircleRight, ArrowRight, BarChart03, Box, CheckCircle, Database01, Signal01 } from "@untitledui/icons";
+import { ArrowCircleRight, ArrowRight, BarChart03, Box, CheckCircle, Database01, Signal01, Truck01 } from "@untitledui/icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/base/buttons/button";
@@ -43,16 +43,16 @@ interface QuickAccessCardProps {
 function QuickAccessCard({ title, description, icon: Icon, href, stats = [], loading = false }: QuickAccessCardProps) {
     return (
         <Link href={href}>
-            <div className="group cursor-pointer rounded-lg border border-surface bg-surface-1 p-6 transition-all hover:border-brand/20 hover:shadow-md">
+            <div className="group cursor-pointer rounded-lg border border-surface bg-surface-1 p-6 transition-all hover:border-white/20 hover:shadow-md/70 hover:shadow-brand-600">
                 <div className="mb-4 flex items-start justify-between">
                     <div className="flex items-center gap-3">
                         <FeaturedIcon size="md" color="brand" theme="modern-neue" icon={Icon} />
                         <div>
-                            <h3 className="font-semibold text-primary transition-colors group-hover:text-brand">{title}</h3>
+                            <h3 className="font-semibold text-primary transition-colors">{title}</h3>
                             <p className="mt-1 text-sm text-tertiary">{description}</p>
                         </div>
                     </div>
-                    <ArrowRight className="h-5 w-5 text-tertiary transition-all group-hover:translate-x-1 group-hover:text-brand" />
+                    <ArrowRight className="h-5 w-5 text-tertiary transition-all group-hover:translate-x-1 group-hover:text-white" />
                 </div>
 
                 {stats.length > 0 && (
@@ -83,6 +83,10 @@ export default function HomePage() {
     const { data: session } = useSession();
     const [meRoles, setMeRoles] = useState<MeRolesData | null>(null);
 
+    const canViewStock = Boolean(meRoles?.isAdmin || meRoles?.roleNames.includes("stock-viewer"));
+    const canViewSims = Boolean(meRoles?.isAdmin || meRoles?.roleNames.includes("sims-viewer"));
+    const canViewReports = Boolean(meRoles?.isAdmin || meRoles?.roleNames.includes("report-viewer"));
+
     useEffect(() => {
         const loadRoles = async () => {
             const response = await fetch("/api/iam/me/roles");
@@ -109,56 +113,77 @@ export default function HomePage() {
     const { data: kpiData, loading: kpiLoading } = useKpiData({
         startDate: quarterRange?.start,
         endDate: quarterRange?.end,
+        enabled: canViewReports && Boolean(quarterRange),
     });
 
-    const { data: stockData, isLoading: stockLoading, statusSummary } = useStockData();
-    const { data: simsData, isLoading: simsLoading, totalRecords: simsTotal } = useSimsData();
+    const {
+        isLoading: stockLoading,
+        lastUpdated: stockLastUpdated,
+        totalRecords: stockTotalRecords,
+        statusSummary: stockStatusSummary,
+    } = useStockData(15 * 60 * 1000, { summary: true, enabled: canViewStock });
+    const { isLoading: simsLoading, totalRecords: simsTotal, metadata: simsMetadata } = useSimsData("", undefined, { enabled: canViewSims });
+
+    const [shippingInProgress, setShippingInProgress] = useState<number>(0);
+    const [shippingLoading, setShippingLoading] = useState(false);
+
+    useEffect(() => {
+        const loadShippingSummary = async () => {
+            try {
+                setShippingLoading(true);
+                const response = await fetch("/api/assignments?summary=true");
+                if (!response.ok) return;
+
+                const json = (await response.json()) as { shippingInProgress?: number };
+                setShippingInProgress(Number(json.shippingInProgress ?? 0));
+            } catch (error) {
+                console.error("Error loading shipping summary:", error);
+            } finally {
+                setShippingLoading(false);
+            }
+        };
+
+        if (!session?.user) return;
+        if (!canViewStock) return;
+
+        void loadShippingSummary();
+    }, [canViewStock, session?.user]);
+
+    const stockCountsByStatus = useMemo(() => {
+        const map = new Map<string, number>();
+
+        if (!stockStatusSummary) {
+            return map;
+        }
+
+        stockStatusSummary.forEach((item) => {
+            map.set(item.status, item.count);
+        });
+
+        return map;
+    }, [stockStatusSummary]);
 
     // Calculate Stock stats - Disponibles = NEW + USED según estados de la DB
     const stockStats = useMemo(() => {
-        if (!stockData || stockData.length === 0) return { total: 0, available: 0, assigned: 0 };
-
-        // Disponibles son los dispositivos con status NEW o USED
-        const available = stockData.filter((record) => {
-            return record.status === "NEW" || record.status === "USED";
-        }).length;
-
-        // Asignados son los que tienen status ASSIGNED o tienen una asignación activa
-        const assigned = stockData.filter((record) => {
-            // Usar is_assigned si está disponible, sino verificar el status o las asignaciones
-            if (record.is_assigned !== undefined) {
-                return record.is_assigned;
-            }
-            const latestAssignment = record.raw?.assignments?.[0];
-            const hasActiveAssignment = latestAssignment && latestAssignment.status === "active";
-            return record.status === "ASSIGNED" || hasActiveAssignment;
-        }).length;
+        const refurbished = (stockCountsByStatus.get("REPAIRED") ?? 0) + (stockCountsByStatus.get("USED") ?? 0);
 
         return {
-            total: stockData.length,
-            available,
-            assigned,
+            total: stockTotalRecords,
+            refurbished,
         };
-    }, [stockData]);
+    }, [stockCountsByStatus, stockTotalRecords]);
 
-    // Calculate SIMS total - use totalRecords if available, otherwise fallback to data length
+    const simsInactiveCount = simsMetadata?.totalInactive ?? 0;
+
     const simsTotalCount = useMemo(() => {
-        // While loading, return 0 (will show "..." via loading prop)
         if (simsLoading) return 0;
 
-        // Prefer totalRecords from API response
-        if (simsTotal !== undefined && simsTotal !== null && simsTotal > 0) {
-            return simsTotal;
+        if (simsMetadata) {
+            return (simsMetadata.totalActive ?? 0) + (simsMetadata.totalInactive ?? 0);
         }
 
-        // Fallback to data length if we have data
-        if (simsData && Array.isArray(simsData) && simsData.length > 0) {
-            return simsData.length;
-        }
-
-        // Default to 0 if no data
-        return 0;
-    }, [simsLoading, simsTotal, simsData]);
+        return simsTotal ?? 0;
+    }, [simsLoading, simsMetadata, simsTotal]);
 
     // Format date helper
     const formatDate = (dateString: string | null) => {
@@ -191,7 +216,7 @@ export default function HomePage() {
                 label: "Solicitudes",
                 value: kpiData.requests || 0,
                 icon: Database01,
-                subtitle: `Período ${currentQuarter}`,
+                subtitle: `Período ${currentQuarter} • Pendientes: ${(kpiData.requests_pending || 0).toLocaleString("es-AR")}`,
             },
             {
                 label: "Recambios",
@@ -218,108 +243,125 @@ export default function HomePage() {
         <div className="space-y-6">
             {/* Header */}
             <div className="flex flex-col gap-2">
-                <h1 className="text-2xl font-semibold tracking-tight">Mesa de Entrada</h1>
-                <p className="text-sm text-tertiary">Dashboard principal de Mesa de Ayuda - Nivel 2</p>
+                <h1 className="text-2xl font-semibold tracking-tight">Inicio</h1>
+                <p className="text-sm text-tertiary">Resumen general y accesos rápidos</p>
             </div>
 
-            {/* Main KPIs */}
-            <section className="space-y-3">
-                <h2 className="text-lg font-medium text-primary">Indicadores Principales</h2>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    {kpiCards.map((card, idx) => {
-                        const Icon = card.icon;
-                        return (
-                            <div key={idx} className="flex flex-col gap-4 rounded-lg border border-surface bg-surface-1 p-4 shadow-xs">
+            {/* Alertas */}
+            {(canViewStock || canViewSims) && (
+                <section className="space-y-3">
+                    <h2 className="text-lg font-medium text-primary">Alertas</h2>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {canViewStock && !stockLoading && stockStats.total > 0 && stockStats.total < 40 && (
+                            <div className="border-warning/30 bg-warning/5 rounded-lg border p-4">
                                 <div className="flex items-center gap-3">
-                                    <FeaturedIcon size="md" color="brand" theme="modern-neue" icon={Icon} />
+                                    <FeaturedIcon size="md" color="warning" theme="modern-neue" icon={Box} />
                                     <div className="flex flex-col">
-                                        <span className="text-sm font-medium text-secondary">{card.label}</span>
-                                        <span className="text-2xl font-semibold text-primary">{card.value}</span>
+                                        <p className="text-sm font-medium text-primary">Stock bajo</p>
+                                        <p className="text-xs text-tertiary">Umbral: 40</p>
                                     </div>
                                 </div>
-                                {card.subtitle && <p className="text-xs text-tertiary">{card.subtitle}</p>}
+                                <p className="mt-3 text-sm text-secondary">
+                                    Inventario total: <span className="font-semibold">{stockStats.total}</span>
+                                </p>
                             </div>
-                        );
-                    })}
-                </div>
-            </section>
+                        )}
 
-            {/* Quick Access Cards */}
+                        {canViewSims && (
+                            <div className="rounded-lg border border-surface bg-surface-1 p-4">
+                                <div className="flex items-center gap-3">
+                                    <FeaturedIcon size="md" color="brand" theme="modern-neue" icon={Signal01} />
+                                    <div className="flex flex-col">
+                                        <p className="text-sm font-medium text-primary">SIMs inactivas</p>
+                                        {simsMetadata?.totalInactive !== undefined && !simsLoading && <p className="text-xs text-tertiary">Cantidad actual</p>}
+                                    </div>
+                                </div>
+                                <p className="mt-3 text-sm text-secondary">
+                                    Total: <span className="font-semibold">{simsLoading ? "..." : simsInactiveCount.toLocaleString("es-AR")}</span>
+                                </p>
+                            </div>
+                        )}
+
+                        {!((canViewStock && !stockLoading && stockStats.total > 0 && stockStats.total < 40) || canViewSims) && (
+                            <div className="rounded-lg border border-surface bg-surface-1 p-4">
+                                <p className="text-sm text-tertiary">Sin alertas por ahora.</p>
+                            </div>
+                        )}
+                    </div>
+                </section>
+            )}
+
+            {/* Operativo del día */}
             <section className="space-y-3">
-                <h2 className="text-lg font-medium text-primary">Acceso Rápido</h2>
+                <h2 className="text-lg font-medium text-primary">Operativo del día</h2>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {(meRoles?.isAdmin || meRoles?.roleNames.includes("stock-viewer")) && (
+                    {canViewStock && (
                         <QuickAccessCard
                             title="Inventario"
-                            description="Gestión de dispositivos"
+                            description={stockLastUpdated ? `Actualizado: ${formatDate(stockLastUpdated)}` : "Gestión de dispositivos"}
                             icon={Box}
                             href="/stock"
                             loading={stockLoading}
                             stats={[
                                 { label: "Total", value: stockStats.total },
-                                { label: "Disponibles", value: stockStats.available },
+                                { label: "Reacondicionados", value: stockStats.refurbished },
                             ]}
                         />
                     )}
 
-                    {(meRoles?.isAdmin || meRoles?.roleNames.includes("sims-viewer")) && (
+                    {canViewStock && (
+                        <QuickAccessCard
+                            title="Envíos"
+                            description="Asig. con envío pendiente"
+                            icon={Truck01}
+                            href="/stock"
+                            loading={shippingLoading}
+                            stats={[{ label: "En curso", value: shippingInProgress }]}
+                        />
+                    )}
+
+                    {canViewSims && (
                         <QuickAccessCard
                             title="SIMS"
                             description="Gestión de tarjetas SIM"
                             icon={Signal01}
                             href="/sims"
                             loading={simsLoading}
-                            stats={[{ label: "Total", value: simsTotalCount }]}
-                        />
-                    )}
-
-                    {(meRoles?.isAdmin || meRoles?.roleNames.includes("report-viewer")) && (
-                        <QuickAccessCard
-                            title="Reportes"
-                            description="Análisis y estadísticas"
-                            icon={BarChart03}
-                            href="/reports/phones"
-                            stats={[{ label: "Período", value: currentQuarter || "..." }]}
+                            stats={[
+                                { label: "Total", value: simsTotalCount },
+                                { label: "Inactivas", value: simsInactiveCount },
+                            ]}
                         />
                     )}
                 </div>
             </section>
 
-            {/* Status Summary */}
-            {(meRoles?.isAdmin || meRoles?.roleNames.includes("stock-viewer")) && (
+            {/* Indicadores del período */}
+            {canViewReports && (
                 <section className="space-y-3">
-                    <h2 className="text-lg font-medium text-primary">Resumen de Estado</h2>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-1">
-                        {/* Stock Status */}
-                        <div className="rounded-lg border border-surface bg-surface-1 p-4">
-                            <div className="mb-3 flex items-center gap-3">
-                                <FeaturedIcon size="md" color="brand" theme="modern-neue" icon={Box} />
-                                <h3 className="font-semibold text-primary">Estado Inventario</h3>
-                            </div>
-                            {stockLoading ? (
-                                <div className="text-sm text-tertiary">Cargando...</div>
-                            ) : (
-                                <div className="space-y-2">
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-tertiary">Dispositivos totales:</span>
-                                        <span className="font-medium text-primary">{stockStats.total}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-tertiary">Disponibles:</span>
-                                        <span className="text-success font-medium">{stockStats.available}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-tertiary">Asignados:</span>
-                                        <span className="font-medium text-primary">{stockStats.assigned}</span>
-                                    </div>
-                                    {statusSummary && statusSummary.length > 0 && (
-                                        <div className="mt-2 border-t border-surface pt-2">
-                                            <p className="text-xs text-tertiary">{statusSummary.length} estados diferentes</p>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <h2 className="text-lg font-medium text-primary">Indicadores del período</h2>
+                        <Button color="secondary" size="sm" iconLeading={BarChart03} onClick={() => router.push("/reports/phones")}>
+                            Ver reportes
+                        </Button>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {kpiCards.map((card, idx) => {
+                            const Icon = card.icon;
+                            return (
+                                <div key={idx} className="flex flex-col gap-4 rounded-lg border border-surface bg-surface-1 p-4 shadow-xs">
+                                    <div className="flex items-center gap-3">
+                                        <FeaturedIcon size="md" color="brand" theme="modern-neue" icon={Icon} />
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-medium text-secondary">{card.label}</span>
+                                            <span className="text-2xl font-semibold text-primary">{card.value}</span>
                                         </div>
-                                    )}
+                                    </div>
+                                    {card.subtitle && <p className="text-xs text-tertiary">{card.subtitle}</p>}
                                 </div>
-                            )}
-                        </div>
+                            );
+                        })}
                     </div>
                 </section>
             )}

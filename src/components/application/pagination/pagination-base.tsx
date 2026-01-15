@@ -2,6 +2,7 @@
 
 import type { CSSProperties, FC, HTMLAttributes, ReactNode } from "react";
 import React, { cloneElement, createContext, isValidElement, useCallback, useContext, useEffect, useState } from "react";
+import { useLocale } from "react-aria-components";
 
 type PaginationPage = {
     /** The type of the pagination item. */
@@ -50,6 +51,10 @@ export interface PaginationRootProps {
 
 const PaginationRoot = ({ total, siblingCount = 1, page, onPageChange, children, style, className }: PaginationRootProps) => {
     const [pages, setPages] = useState<PaginationItemType[]>([]);
+
+    const { locale } = useLocale();
+    const isSpanish = locale.toLowerCase().startsWith("es");
+    const navigationAriaLabel = isSpanish ? "Navegación de paginación" : "Pagination Navigation";
 
     const createPaginationItems = useCallback((): PaginationItemType[] => {
         const items: PaginationItemType[] = [];
@@ -170,7 +175,7 @@ const PaginationRoot = ({ total, siblingCount = 1, page, onPageChange, children,
 
     return (
         <PaginationContext.Provider value={paginationContextValue}>
-            <nav aria-label="Pagination Navigation" style={style} className={className}>
+            <nav aria-label={navigationAriaLabel} style={style} className={className}>
                 {children}
             </nav>
         </PaginationContext.Provider>
@@ -227,7 +232,10 @@ const Trigger: FC<TriggerProps> = ({ children, style, className, asChild = false
 
     const computedClassName = typeof className === "function" ? className({ isDisabled }) : className;
 
-    const defaultAriaLabel = direction === "prev" ? "Previous Page" : "Next Page";
+    const { locale } = useLocale();
+    const isSpanish = locale.toLowerCase().startsWith("es");
+
+    const defaultAriaLabel = direction === "prev" ? (isSpanish ? "Página anterior" : "Previous Page") : isSpanish ? "Página siguiente" : "Next Page";
 
     // If the children is a render prop, we need to pass the isDisabled and onClick to the render prop.
     if (typeof children === "function") {
@@ -298,6 +306,10 @@ const PaginationItem = ({ value, isCurrent, children, style, className, ariaLabe
 
     const computedClassName = typeof className === "function" ? className({ isSelected }) : className;
 
+    const { locale } = useLocale();
+    const isSpanish = locale.toLowerCase().startsWith("es");
+    const defaultPageAriaLabel = `${isSpanish ? "Página" : "Page"} ${value}`;
+
     // If the children is a render prop, we need to pass the necessary props to the render prop.
     if (typeof children === "function") {
         return (
@@ -307,7 +319,7 @@ const PaginationItem = ({ value, isCurrent, children, style, className, ariaLabe
                     onClick: handleClick,
                     value,
                     "aria-current": isCurrent ? "page" : undefined,
-                    "aria-label": ariaLabel || `Page ${value}`,
+                    "aria-label": ariaLabel || defaultPageAriaLabel,
                 })}
             </>
         );
@@ -318,7 +330,7 @@ const PaginationItem = ({ value, isCurrent, children, style, className, ariaLabe
         return cloneElement(children, {
             onClick: handleClick,
             "aria-current": isCurrent ? "page" : undefined,
-            "aria-label": ariaLabel || `Page ${value}`,
+            "aria-label": ariaLabel || defaultPageAriaLabel,
             style: { ...(children.props as HTMLAttributes<HTMLElement>).style, ...style },
             className: [computedClassName, (children.props as HTMLAttributes<HTMLElement>).className].filter(Boolean).join(" ") || undefined,
         } as HTMLAttributes<HTMLElement>);
@@ -330,7 +342,7 @@ const PaginationItem = ({ value, isCurrent, children, style, className, ariaLabe
             style={style}
             className={computedClassName}
             aria-current={isCurrent ? "page" : undefined}
-            aria-label={ariaLabel || `Page ${value}`}
+            aria-label={ariaLabel || defaultPageAriaLabel}
             role="listitem"
         >
             {children}

@@ -3,6 +3,10 @@ import { withRoles } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import type { SimRecord, SimResponse } from "@/lib/types";
 
+const ACTIVE_SIM_STATUSES = ["Activado", "Active"] as const;
+
+type ActiveSimStatus = (typeof ACTIVE_SIM_STATUSES)[number];
+
 export const GET = withRoles(["sims-viewer"], async (request: NextRequest, session) => {
     try {
         const { searchParams } = new URL(request.url);
@@ -39,9 +43,17 @@ export const GET = withRoles(["sims-viewer"], async (request: NextRequest, sessi
             whereConditions.distributor_id = distributorId;
         }
 
-        // Filter by is_active
-        if (isActive !== null && isActive !== undefined) {
-            whereConditions.is_active = isActive === "true";
+        // Filter by "active" category.
+        // NOTE: In our dataset, `is_active` is always true, but `status` contains values like "Inactive".
+        // For UI purposes, treat `is_active` query param as a status-category filter.
+        if (!status && isActive !== null && isActive !== undefined) {
+            const activeStatuses: ActiveSimStatus[] = [...ACTIVE_SIM_STATUSES];
+
+            if (isActive === "true") {
+                whereConditions.status = { in: activeStatuses };
+            } else if (isActive === "false") {
+                whereConditions.status = { notIn: activeStatuses };
+            }
         }
 
         // Search across ICC, IP
@@ -109,7 +121,7 @@ export const GET = withRoles(["sims-viewer"], async (request: NextRequest, sessi
         }));
 
         // Get distinct values for filters
-        const [distinctStatuses, distinctProviders, distributors] = await Promise.all([
+        const [distinctStatuses, distinctProviders, distributors, totalActive, totalInactive] = await Promise.all([
             prisma.sim.findMany({
                 select: { status: true },
                 distinct: ["status"],
@@ -127,6 +139,20 @@ export const GET = withRoles(["sims-viewer"], async (request: NextRequest, sessi
                 },
                 orderBy: { name: "asc" },
             }),
+            prisma.sim.count({
+                where: {
+                    status: {
+                        in: [...ACTIVE_SIM_STATUSES],
+                    },
+                },
+            }),
+            prisma.sim.count({
+                where: {
+                    status: {
+                        notIn: [...ACTIVE_SIM_STATUSES],
+                    },
+                },
+            }),
         ]);
 
         const response: SimResponse = {
@@ -139,8 +165,8 @@ export const GET = withRoles(["sims-viewer"], async (request: NextRequest, sessi
                 statuses: distinctStatuses.map((s) => s.status),
                 providers: distinctProviders.map((p) => p.provider) as ("CLARO" | "MOVISTAR")[],
                 distributors: distributors.map((d) => ({ id: d.id, name: d.name })),
-                totalActive: await prisma.sim.count({ where: { is_active: true } }),
-                totalInactive: await prisma.sim.count({ where: { is_active: false } }),
+                totalActive,
+                totalInactive,
             },
         };
 

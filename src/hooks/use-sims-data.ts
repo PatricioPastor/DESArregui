@@ -13,8 +13,11 @@ export function useSimsData(
         page?: number;
         pageSize?: number;
         sort?: { column: string; direction: "ascending" | "descending" };
+        enabled?: boolean;
     },
 ) {
+    const enabled = options?.enabled !== false;
+
     const [data, setData] = useState<SimRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

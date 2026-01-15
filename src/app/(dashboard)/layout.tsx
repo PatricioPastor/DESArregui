@@ -24,7 +24,7 @@ type MeRolesData = {
 };
 
 const ALL_NAVIGATION_ITEMS: NavigationItem[] = [
-    { label: "Mesa de entrada", href: "/", icon: Home01, current: false },
+    { label: "Inicio", href: "/", icon: Home01, current: false },
     { label: "Inventario", href: "/stock", icon: Package, current: false, requiredRole: "stock-viewer" },
     { label: "SIMS", href: "/sims", icon: Signal01, current: false, requiredRole: "sims-viewer" },
     { label: "Reportes", href: "/reports/phones", icon: BarChart03, current: false, requiredRole: "report-viewer" },
