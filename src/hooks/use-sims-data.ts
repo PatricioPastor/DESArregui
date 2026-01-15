@@ -18,6 +18,18 @@ export function useSimsData(
 ) {
     const enabled = options?.enabled !== false;
 
+    // Important: `filters` / `options` are often passed as inline objects.
+    // Avoid using them directly as hook dependencies, otherwise we refetch on every render.
+    const filterStatus = filters?.status;
+    const filterProvider = filters?.provider;
+    const filterDistributorId = filters?.distributorId;
+    const filterIsActive = filters?.isActive;
+
+    const page = options?.page;
+    const pageSize = options?.pageSize;
+    const sortColumn = options?.sort?.column;
+    const sortDirection = options?.sort?.direction;
+
     const [data, setData] = useState<SimRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -90,12 +102,50 @@ export function useSimsData(
     }, []);
 
     useEffect(() => {
-        fetchData(searchQuery, filters, options);
-    }, [searchQuery, filters, options, fetchData]);
+        if (!enabled) {
+            setIsLoading(false);
+            setError(null);
+            setData([]);
+            setTotalRecords(0);
+            setLastUpdated(null);
+            setMetadata(undefined);
+            return;
+        }
+
+        fetchData(
+            searchQuery,
+            {
+                status: filterStatus,
+                provider: filterProvider,
+                distributorId: filterDistributorId,
+                isActive: filterIsActive,
+            },
+            {
+                page,
+                pageSize,
+                sort: sortColumn ? { column: sortColumn, direction: sortDirection || "ascending" } : undefined,
+            },
+        );
+    }, [enabled, fetchData, filterDistributorId, filterIsActive, filterProvider, filterStatus, page, pageSize, searchQuery, sortColumn, sortDirection]);
 
     const refresh = useCallback(() => {
-        fetchData(searchQuery, filters, options);
-    }, [fetchData, searchQuery, filters, options]);
+        if (!enabled) return;
+
+        fetchData(
+            searchQuery,
+            {
+                status: filterStatus,
+                provider: filterProvider,
+                distributorId: filterDistributorId,
+                isActive: filterIsActive,
+            },
+            {
+                page,
+                pageSize,
+                sort: sortColumn ? { column: sortColumn, direction: sortDirection || "ascending" } : undefined,
+            },
+        );
+    }, [enabled, fetchData, filterDistributorId, filterIsActive, filterProvider, filterStatus, page, pageSize, searchQuery, sortColumn, sortDirection]);
 
     return {
         data,

@@ -82,6 +82,10 @@ export function useStockData(
         if (!enabled) {
             setIsLoading(false);
             setError(null);
+            setData([]);
+            setTotalRecords(0);
+            setStatusSummary([]);
+            setLastUpdated(null);
             return;
         }
 
