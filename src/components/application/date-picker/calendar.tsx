@@ -14,6 +14,7 @@ import {
     CalendarHeaderCell as AriaCalendarHeaderCell,
     CalendarStateContext as AriaCalendarStateContext,
     Heading as AriaHeading,
+    useLocale,
     useSlottedContext,
 } from "react-aria-components";
 import { Button } from "@/components/base/buttons/button";
@@ -63,6 +64,9 @@ interface CalendarProps extends AriaCalendarProps<DateValue> {
 }
 
 export const Calendar = ({ highlightedDates, className, ...props }: CalendarProps) => {
+    const { locale } = useLocale();
+    const isSpanish = locale.toLowerCase().startsWith("es");
+
     const context = useSlottedContext(AriaCalendarContext)!;
 
     const ContextWrapper = context ? Fragment : CalendarContextProvider;
@@ -78,7 +82,7 @@ export const Calendar = ({ highlightedDates, className, ...props }: CalendarProp
 
                 <div className="flex gap-3">
                     <DateInput className="flex-1" />
-                    <PresetButton value={today(getLocalTimeZone())}>Today</PresetButton>
+                    <PresetButton value={today(getLocalTimeZone())}>{isSpanish ? "Hoy" : "Today"}</PresetButton>
                 </div>
 
                 <AriaCalendarGrid weekdayStyle="short" className="w-max">

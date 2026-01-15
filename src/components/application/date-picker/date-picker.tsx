@@ -5,7 +5,7 @@ import { useControlledState } from "@react-stately/utils";
 import { Calendar as CalendarIcon } from "@untitledui/icons";
 import { useDateFormatter } from "react-aria";
 import type { DatePickerProps as AriaDatePickerProps, DateValue } from "react-aria-components";
-import { DatePicker as AriaDatePicker, Dialog as AriaDialog, Group as AriaGroup, Popover as AriaPopover } from "react-aria-components";
+import { DatePicker as AriaDatePicker, Dialog as AriaDialog, Group as AriaGroup, Popover as AriaPopover, useLocale } from "react-aria-components";
 import { Button } from "@/components/base/buttons/button";
 import { cx } from "@/utils/cx";
 import { Calendar } from "./calendar";
@@ -19,7 +19,20 @@ interface DatePickerProps extends AriaDatePickerProps<DateValue> {
     onCancel?: () => void;
 }
 
+const getDatePickerLabels = (locale: string) => {
+    const isSpanish = locale.toLowerCase().startsWith("es");
+
+    return {
+        selectDate: isSpanish ? "Seleccionar fecha" : "Select date",
+        cancel: isSpanish ? "Cancelar" : "Cancel",
+        apply: isSpanish ? "Aplicar" : "Apply",
+    } as const;
+};
+
 export const DatePicker = ({ value: valueProp, defaultValue, onChange, onApply, onCancel, ...props }: DatePickerProps) => {
+    const { locale } = useLocale();
+    const labels = getDatePickerLabels(locale);
+
     const formatter = useDateFormatter({
         month: "short",
         day: "numeric",
@@ -27,7 +40,7 @@ export const DatePicker = ({ value: valueProp, defaultValue, onChange, onApply, 
     });
     const [value, setValue] = useControlledState(valueProp, defaultValue || null, onChange);
 
-    const formattedDate = value ? formatter.format(value.toDate(getLocalTimeZone())) : "Select date";
+    const formattedDate = value ? formatter.format(value.toDate(getLocalTimeZone())) : labels.selectDate;
 
     return (
         <AriaDatePicker shouldCloseOnSelect={false} {...props} value={value} onChange={setValue}>
@@ -64,7 +77,7 @@ export const DatePicker = ({ value: valueProp, defaultValue, onChange, onApply, 
                                         close();
                                     }}
                                 >
-                                    Cancel
+                                    {labels.cancel}
                                 </Button>
                                 <Button
                                     size="md"
@@ -74,7 +87,7 @@ export const DatePicker = ({ value: valueProp, defaultValue, onChange, onApply, 
                                         close();
                                     }}
                                 >
-                                    Apply
+                                    {labels.apply}
                                 </Button>
                             </div>
                         </>

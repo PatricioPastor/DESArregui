@@ -24,63 +24,92 @@ interface DateRangePickerProps extends AriaDateRangePickerProps<DateValue> {
     onCancel?: () => void;
 }
 
+const getDateRangePickerLabels = (locale: string) => {
+    const isSpanish = locale.toLowerCase().startsWith("es");
+
+    return {
+        ariaLabel: isSpanish ? "Selector de rango de fechas" : "Date range picker",
+        selectDate: isSpanish ? "Seleccionar fecha" : "Select date",
+        selectDates: isSpanish ? "Seleccionar fechas" : "Select dates",
+        cancel: isSpanish ? "Cancelar" : "Cancel",
+        apply: isSpanish ? "Aplicar" : "Apply",
+        presets: {
+            today: isSpanish ? "Hoy" : "Today",
+            yesterday: isSpanish ? "Ayer" : "Yesterday",
+            thisWeek: isSpanish ? "Esta semana" : "This week",
+            lastWeek: isSpanish ? "Semana pasada" : "Last week",
+            thisMonth: isSpanish ? "Este mes" : "This month",
+            lastMonth: isSpanish ? "Mes pasado" : "Last month",
+            thisYear: isSpanish ? "Este año" : "This year",
+            lastYear: isSpanish ? "Año pasado" : "Last year",
+            allTime: isSpanish ? "Todo el tiempo" : "All time",
+        },
+    } as const;
+};
+
 export const DateRangePicker = ({ value: valueProp, defaultValue, onChange, onApply, onCancel, ...props }: DateRangePickerProps) => {
     const { locale } = useLocale();
+    const labels = useMemo(() => getDateRangePickerLabels(locale), [locale]);
+
     const formatter = useDateFormatter({
         month: "short",
         day: "numeric",
         year: "numeric",
     });
+
     const [value, setValue] = useControlledState(valueProp, defaultValue || null, onChange);
     const [focusedValue, setFocusedValue] = useState<DateValue | null>(null);
 
-    const formattedStartDate = value?.start ? formatter.format(value.start.toDate(getLocalTimeZone())) : "Select date";
-    const formattedEndDate = value?.end ? formatter.format(value.end.toDate(getLocalTimeZone())) : "Select date";
+    const formattedStartDate = value?.start ? formatter.format(value.start.toDate(getLocalTimeZone())) : labels.selectDate;
+    const formattedEndDate = value?.end ? formatter.format(value.end.toDate(getLocalTimeZone())) : labels.selectDate;
 
     const presets = useMemo(
         () => ({
-            today: { label: "Today", value: { start: now, end: now } },
-            yesterday: { label: "Yesterday", value: { start: now.subtract({ days: 1 }), end: now.subtract({ days: 1 }) } },
-            thisWeek: { label: "This week", value: { start: startOfWeek(now, locale), end: endOfWeek(now, locale) } },
+            today: { label: labels.presets.today, value: { start: now, end: now } },
+            yesterday: { label: labels.presets.yesterday, value: { start: now.subtract({ days: 1 }), end: now.subtract({ days: 1 }) } },
+            thisWeek: { label: labels.presets.thisWeek, value: { start: startOfWeek(now, locale), end: endOfWeek(now, locale) } },
             lastWeek: {
-                label: "Last week",
+                label: labels.presets.lastWeek,
                 value: {
                     start: startOfWeek(now, locale).subtract({ weeks: 1 }),
                     end: endOfWeek(now, locale).subtract({ weeks: 1 }),
                 },
             },
-            thisMonth: { label: "This month", value: { start: startOfMonth(now), end: endOfMonth(now) } },
+            thisMonth: { label: labels.presets.thisMonth, value: { start: startOfMonth(now), end: endOfMonth(now) } },
             lastMonth: {
-                label: "Last month",
+                label: labels.presets.lastMonth,
                 value: {
                     start: startOfMonth(now).subtract({ months: 1 }),
                     end: endOfMonth(now).subtract({ months: 1 }),
                 },
             },
-            thisYear: { label: "This year", value: { start: startOfMonth(now.set({ month: 1 })), end: endOfMonth(now.set({ month: 12 })) } },
+            thisYear: {
+                label: labels.presets.thisYear,
+                value: { start: startOfMonth(now.set({ month: 1 })), end: endOfMonth(now.set({ month: 12 })) },
+            },
             lastYear: {
-                label: "Last year",
+                label: labels.presets.lastYear,
                 value: {
                     start: startOfMonth(now.set({ month: 1 }).subtract({ years: 1 })),
                     end: endOfMonth(now.set({ month: 12 }).subtract({ years: 1 })),
                 },
             },
             allTime: {
-                label: "All time",
+                label: labels.presets.allTime,
                 value: {
                     start: now.set({ year: 2000, month: 1, day: 1 }),
                     end: now,
                 },
             },
         }),
-        [locale],
+        [labels, locale],
     );
 
     return (
-        <AriaDateRangePicker aria-label="Date range picker" shouldCloseOnSelect={false} {...props} value={value} onChange={setValue}>
+        <AriaDateRangePicker aria-label={labels.ariaLabel} shouldCloseOnSelect={false} {...props} value={value} onChange={setValue}>
             <AriaGroup>
                 <Button size="md" color="secondary" iconLeading={CalendarIcon}>
-                    {!value ? <span className="text-placeholder">Select dates</span> : `${formattedStartDate} – ${formattedEndDate}`}
+                    {!value ? <span className="text-placeholder">{labels.selectDates}</span> : `${formattedStartDate} – ${formattedEndDate}`}
                 </Button>
             </AriaGroup>
             <AriaPopover
@@ -139,7 +168,7 @@ export const DateRangePicker = ({ value: valueProp, defaultValue, onChange, onAp
                                                 close();
                                             }}
                                         >
-                                            Cancel
+                                            {labels.cancel}
                                         </Button>
                                         <Button
                                             size="md"
@@ -149,7 +178,7 @@ export const DateRangePicker = ({ value: valueProp, defaultValue, onChange, onAp
                                                 close();
                                             }}
                                         >
-                                            Apply
+                                            {labels.apply}
                                         </Button>
                                     </div>
                                 </div>
