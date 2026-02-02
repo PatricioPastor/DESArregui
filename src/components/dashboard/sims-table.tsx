@@ -345,7 +345,7 @@ export function SimsTable() {
                                             />
                                         </div>
                                     ) : (
-                                        <span className="text-quaternary">-</span>
+                                        <span className="text-quaternary">Sin IP</span>
                                     )}
                                 </Table.Cell>
                                 <Table.Cell>{getProviderBadge(item.provider)}</Table.Cell>
