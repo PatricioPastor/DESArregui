@@ -47,6 +47,22 @@ const LEGACY_STATUS_MAP: Record<string, device_status> = {
     PERDIDO: "LOST",
 } as const;
 
+const ASSIGNMENT_SUMMARY_SELECT = {
+    id: true,
+    type: true,
+    status: true,
+    assignee_name: true,
+    assignee_phone: true,
+    shipping_voucher_id: true,
+    shipping_status: true,
+    shipped_at: true,
+    delivered_at: true,
+    expects_return: true,
+    return_device_imei: true,
+    return_status: true,
+    at: true,
+} as const;
+
 // Database query configuration
 const DEVICE_INCLUDE = {
     model: {
@@ -72,27 +88,7 @@ const DEVICE_INCLUDE = {
     },
     assignments: {
         orderBy: { at: "desc" as const },
-        select: {
-            id: true,
-            type: true,
-            assigned_to: true,
-            assignee_name: true,
-            assignee_phone: true,
-            ticket_id: true,
-            at: true,
-            status: true,
-            shipping_voucher_id: true,
-            delivery_location: true,
-            contact_details: true,
-            expects_return: true,
-            return_device_imei: true,
-            distributor: {
-                select: {
-                    id: true,
-                    name: true,
-                },
-            },
-        },
+        select: ASSIGNMENT_SUMMARY_SELECT,
         take: 10, // Limit to recent assignments for performance
     },
 } as const;
@@ -142,6 +138,22 @@ const buildInventoryRecord = (device: DeviceWithRelations, sotiDevice?: any): In
         last_sync: sotiDevice?.last_sync?.toISOString() || undefined,
     };
 
+    const rawAssignments = assignments.map((assignment) => ({
+        id: assignment.id,
+        type: assignment.type,
+        status: assignment.status,
+        assignee_name: assignment.assignee_name,
+        assignee_phone: assignment.assignee_phone,
+        shipping_voucher_id: assignment.shipping_voucher_id,
+        shipping_status: assignment.shipping_status,
+        shipped_at: assignment.shipped_at?.toISOString() || null,
+        delivered_at: assignment.delivered_at?.toISOString() || null,
+        expects_return: assignment.expects_return,
+        return_device_imei: assignment.return_device_imei || null,
+        return_status: assignment.return_status || null,
+        at: assignment.at.toISOString(),
+    }));
+
     return {
         id: device.id,
         imei: device.imei,
@@ -177,14 +189,10 @@ const buildInventoryRecord = (device: DeviceWithRelations, sotiDevice?: any): In
         assignments_count: assignments.length,
         soti_info: sotiInfo,
         raw: {
-            ...device,
-            created_at: device.created_at.toISOString(),
-            updated_at: device.updated_at.toISOString(),
-            assignments: assignments.map((a) => ({
-                ...a,
-                at: a.at.toISOString(),
-            })),
-            soti_device: sotiDevice || null,
+            id: device.id,
+            is_deleted: device.is_deleted ?? false,
+            assignments: rawAssignments,
+            soti_device: sotiDevice ? { id: sotiDevice.id } : null,
         },
     };
 };

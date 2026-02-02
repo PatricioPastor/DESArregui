@@ -14,7 +14,9 @@ import { Input } from "@/components/base/input/input";
 import { Select } from "@/components/base/select/select";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useSimsData } from "@/hooks/use-sims-data";
+import { useSession } from "@/lib/auth-client";
 import type { SimRecord } from "@/lib/types";
+import { ImportSimsButton } from "./import-sims-button";
 
 function highlightMatches(value: string, query: string) {
     const normalizedQuery = query.trim();
@@ -65,6 +67,8 @@ async function copyToClipboard(label: string, value: string) {
 }
 
 export function SimsTable() {
+    const { data: session } = useSession();
+    const isAdmin = session?.user?.role === "admin";
     const [searchQuery, setSearchQuery] = useState("");
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
@@ -178,6 +182,7 @@ export function SimsTable() {
                         )}
                     </p>
                 </div>
+                {isAdmin && <ImportSimsButton onImportComplete={refresh} />}
             </div>
 
             {/* Search and Filters */}
