@@ -25,6 +25,8 @@ interface SyncResponse {
     errorDetails?: Array<{ icc: string; error: string }>;
 }
 
+const CHUNK_SIZE = 1000;
+
 interface ImportSimsButtonProps {
     onImportComplete?: () => void;
     size?: "sm" | "md";
@@ -108,37 +110,70 @@ export function ImportSimsButton({ onImportComplete, size = "sm", color = "secon
                 return;
             }
 
-            toast.loading("Sincronizando con la base de datos...", {
+            toast.loading("Preparando sincronizacion...", {
                 id: toastId,
-                description: `Enviando ${sims.length.toLocaleString("es-AR")} SIMs`,
+                description: `Total: ${sims.length.toLocaleString("es-AR")} SIMs`,
             });
 
-            // Send to API
-            const response = await fetch("/api/sync/sims", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ sims }),
-            });
+            const totalChunks = Math.ceil(sims.length / CHUNK_SIZE);
+            const syncToken = new Date().toISOString();
+            const totals = {
+                processed: 0,
+                created: 0,
+                updated: 0,
+                deactivated: 0,
+                distributorsCreated: 0,
+                errors: 0,
+            };
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({})) as { error?: string };
-                throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+            for (let index = 0; index < totalChunks; index += 1) {
+                const start = index * CHUNK_SIZE;
+                const chunk = sims.slice(start, start + CHUNK_SIZE);
+                const isLastChunk = index === totalChunks - 1;
+
+                toast.loading("Sincronizando con la base de datos...", {
+                    id: toastId,
+                    description: `Lote ${index + 1}/${totalChunks} • ${chunk.length.toLocaleString("es-AR")} SIMs`,
+                });
+
+                const response = await fetch("/api/sync/sims", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        sims: chunk,
+                        syncToken,
+                        chunkIndex: index + 1,
+                        totalChunks,
+                        finalize: isLastChunk,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorData = (await response.json().catch(() => ({}))) as { error?: string };
+                    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data: SyncResponse = await response.json();
+                totals.processed += data.processed;
+                totals.created += data.created;
+                totals.updated += data.updated;
+                totals.deactivated += data.deactivated;
+                totals.distributorsCreated += data.distributorsCreated;
+                totals.errors += data.errors;
             }
 
-            const data: SyncResponse = await response.json();
-
-            if (data.success) {
+            if (totals.errors === 0) {
                 toast.success("Importación completada", {
                     id: toastId,
-                    description: `✅ ${data.processed.toLocaleString("es-AR")} procesados • ${data.created.toLocaleString("es-AR")} creados • ${data.updated.toLocaleString("es-AR")} actualizados • ${data.deactivated.toLocaleString("es-AR")} desactivados`,
+                    description: `✅ ${totals.processed.toLocaleString("es-AR")} procesados • ${totals.created.toLocaleString("es-AR")} creados • ${totals.updated.toLocaleString("es-AR")} actualizados • ${totals.deactivated.toLocaleString("es-AR")} desactivados`,
                     duration: 8000,
                 });
             } else {
                 toast.warning("Importación con errores", {
                     id: toastId,
-                    description: `⚠️ ${data.errors} errores • ${data.processed - data.errors} exitosos`,
+                    description: `⚠️ ${totals.errors} errores • ${totals.processed - totals.errors} exitosos`,
                     duration: 8000,
                 });
             }
