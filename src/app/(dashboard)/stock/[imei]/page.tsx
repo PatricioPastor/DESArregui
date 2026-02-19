@@ -1,118 +1,161 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
-import { getDeviceDetailByImei } from "@/lib/stock-detail";
-import { DeviceDetailClient } from "./device-detail.client";
-import { HeaderActions } from "./header-actions.client";
-import { INVENTORY_STATUS_COLOR } from "@/lib/inventory-utils";
+import { DEVICE_STATUS_LABELS } from "@/constants/device-status";
+import prisma from "@/lib/prisma";
+import { type AssignmentOperationalItem, DeviceOperationalClient, type DeviceOperationalData } from "./device-operational.client";
 
-type DeviceDetailPageParams = {
-  imei: string;
+const STATUS_COLOR_BY_LABEL: Record<string, "success" | "brand" | "warning" | "gray" | "error"> = {
+    Nuevo: "success",
+    Asignado: "brand",
+    Usado: "gray",
+    Reparado: "success",
+    "Sin reparacion": "warning",
+    Perdido: "error",
 };
 
-export default async function DeviceDetailPage({
-  params,
-}: {
-  params: Promise<DeviceDetailPageParams>;
-}) {
-  const { imei: rawImei } = await params;
-  const imei = rawImei?.trim();
+type DeviceDetailPageParams = {
+    imei: string;
+};
 
-  if (!imei) {
-    notFound();
-  }
+const formatModelDisplay = (model: { brand: string; model: string; storage_gb: number | null; color: string | null }) => {
+    const parts = [model.brand, model.model, model.storage_gb ? `${model.storage_gb}GB` : null, model.color ? `(${model.color})` : null].filter(Boolean);
+    return parts.join(" ").replace(/\s+/g, " ").trim();
+};
 
-  const detail = await getDeviceDetailByImei(imei);
+const parseAssignmentContext = (raw: string | null) => {
+    if (!raw) {
+        return null;
+    }
 
-  if (!detail) {
-    notFound();
-  }
+    try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return parsed as Record<string, unknown>;
+        }
+    } catch {
+        return null;
+    }
 
-  const statusLabel = detail.inventory.status_label;
-  const statusColor = INVENTORY_STATUS_COLOR[statusLabel] ?? "brand";
+    return null;
+};
 
-  // Determinar si se puede asignar manualmente
-  const currentAssignment = detail.assignments.find(
-    (assignment) => (assignment.status || "").toLowerCase() === "active"
-  ) || null;
+const getStatusLabel = (status: string) => {
+    return DEVICE_STATUS_LABELS[status as keyof typeof DEVICE_STATUS_LABELS] || status;
+};
 
-  const isDeleted = (detail.inventory.raw as any)?.is_deleted ?? false;
+export default async function DeviceDetailPage({ params }: { params: Promise<DeviceDetailPageParams> }) {
+    const { imei: rawImei } = await params;
+    const imei = rawImei?.trim();
 
-  const canManuallyAssign =
-    !isDeleted &&
-    detail.inventory.status !== "ASSIGNED" &&
-    !currentAssignment &&
-    !detail.soti_device?.is_active;
+    if (!imei) {
+        notFound();
+    }
 
-  const canDelete =
-    !isDeleted &&
-    !currentAssignment;
+    const device = await prisma.device_n1.findUnique({
+        where: { imei },
+        include: {
+            model: {
+                select: {
+                    brand: true,
+                    model: true,
+                    storage_gb: true,
+                    color: true,
+                },
+            },
+            distributor: {
+                select: {
+                    name: true,
+                },
+            },
+            assignments_n1: {
+                orderBy: {
+                    assigned_at: "desc",
+                },
+                include: {
+                    distributor: {
+                        select: {
+                            name: true,
+                        },
+                    },
+                    shipments_n1: {
+                        orderBy: {
+                            created_at: "desc",
+                        },
+                    },
+                },
+            },
+        },
+    });
 
-  return (
-    <section className="flex flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-      <header className="flex flex-col gap-4 border-b border-secondary pb-4">
-        <div className="text-sm text-tertiary">
-          <Link href="/stock" className="transition hover:text-primary">
-            Inventario
-          </Link>
-          <span className="mx-2">/</span>
-          <span className="text-secondary font-medium">IMEI {detail.inventory.imei}</span>
-        </div>
+    if (!device) {
+        notFound();
+    }
 
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold text-primary tracking-tight">{detail.inventory.modelo}</h1>
-            </div>
-            <p className="text-sm text-tertiary">
-              IMEI <span className="font-mono text-secondary">{detail.inventory.imei}</span>
-            </p>
-            <div className="flex flex-wrap items-center gap-2 pt-2">
-              <BadgeWithDot type="modern" color={statusColor} size="lg">
-                {statusLabel}
-              </BadgeWithDot>
-              {detail.inventory.model_details?.brand && (
-                <Badge size="sm" color="gray">
-                  {detail.inventory.model_details.brand} - {detail.inventory.model_details.model}
-                </Badge>
-              )}
-              {detail.inventory.model_details?.storage_gb ? (
-                <Badge size="sm" color="gray">
-                  {detail.inventory.model_details.storage_gb}GB
-                </Badge>
-              ) : null}
-              {detail.inventory.model_details?.color ? (
-                <Badge size="sm" color="gray">
-                  {detail.inventory.model_details.color}
-                </Badge>
-              ) : null}
-            </div>
-          </div>
-          <HeaderActions
-            canManuallyAssign={canManuallyAssign}
-            canDelete={canDelete}
-            hasActiveAssignment={!!currentAssignment}
-            assignmentId={currentAssignment?.id}
-            assignmentAssigneeName={currentAssignment?.assignee_name || undefined}
-            assignmentAt={currentAssignment?.at}
-            deviceImei={detail.inventory.imei}
-            deviceInfo={{
-              id: detail.inventory.raw?.id || "",
-              imei: detail.inventory.imei,
-              modelo: detail.inventory.modelo || "",
-              status: detail.inventory.status,
-            }}
-          />
-        </div>
-      </header>
+    const statusLabel = getStatusLabel(device.status);
+    const modelDisplay = formatModelDisplay(device.model);
 
-      <DeviceDetailClient
-        detail={detail}
-        statusLabel={statusLabel}
-        statusColor={statusColor}
-        canManuallyAssign={canManuallyAssign}
-        canDelete={canDelete}
-      />
-    </section>
-  );
+    const history: AssignmentOperationalItem[] = device.assignments_n1.map((assignment) => {
+        const outbound = assignment.shipments_n1.find((shipment) => (shipment.leg || "").toUpperCase() === "OUTBOUND") || null;
+        const context = parseAssignmentContext(assignment.closure_reason);
+
+        return {
+            id: assignment.id.toString(),
+            type: assignment.type,
+            status: assignment.status,
+            assigneeName: assignment.assignee_name,
+            assigneeEmail: assignment.assignee_email || null,
+            distributorName: assignment.distributor?.name || null,
+            ticketId: assignment.ticket_id || null,
+            assignedAt: assignment.assigned_at.toISOString(),
+            closedAt: assignment.closed_at?.toISOString() || null,
+            outboundShipmentStatus: outbound?.status || null,
+            outboundVoucherId: outbound?.voucher_id || null,
+            assignmentKind: typeof context?.assignment_kind === "string" ? context.assignment_kind : null,
+            operationalLabel: typeof context?.operational_label === "string" ? context.operational_label : null,
+            roleOrReason: typeof context?.role_or_reason === "string" ? context.role_or_reason : null,
+            replacementReason: typeof context?.replacement_reason === "string" ? context.replacement_reason : null,
+        };
+    });
+
+    const activeAssignment = history.find((assignment) => (assignment.status || "").toLowerCase() === "active") || null;
+
+    const initialData: DeviceOperationalData = {
+        device: {
+            id: device.id,
+            imei: device.imei,
+            modelDisplay,
+            distributorName: device.distributor?.name || null,
+            assignedTo: device.assigned_to || null,
+            ticketId: device.ticket_id || null,
+            status: device.status,
+            statusLabel,
+            statusColor: STATUS_COLOR_BY_LABEL[statusLabel] || "gray",
+            updatedAt: device.updated_at.toISOString(),
+        },
+        activeAssignment,
+        history,
+    };
+
+    return (
+        <section className="flex flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+            <header className="flex flex-col gap-4 border-b border-secondary pb-4">
+                <div className="text-sm text-tertiary">
+                    <Link href="/stock" className="transition hover:text-primary">
+                        Inventario
+                    </Link>
+                    <span className="mx-2">/</span>
+                    <span className="font-medium text-secondary">IMEI {device.imei}</span>
+                </div>
+
+                <div>
+                    <h1 className="text-2xl font-semibold tracking-tight text-primary">{modelDisplay}</h1>
+                    <p className="mt-1 text-sm text-tertiary">
+                        IMEI <span className="font-mono text-secondary">{device.imei}</span>
+                    </p>
+                </div>
+            </header>
+
+            <DeviceOperationalClient initialData={initialData} />
+        </section>
+    );
 }

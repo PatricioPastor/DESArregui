@@ -21,9 +21,10 @@ export interface RadioButtonBaseProps {
     isFocusVisible?: boolean;
     isSelected?: boolean;
     isDisabled?: boolean;
+    focusRingClassName?: string;
 }
 
-export const RadioButtonBase = ({ className, isFocusVisible, isSelected, isDisabled, size = "sm" }: RadioButtonBaseProps) => {
+export const RadioButtonBase = ({ className, isFocusVisible, isSelected, isDisabled, focusRingClassName, size = "sm" }: RadioButtonBaseProps) => {
     return (
         <div
             className={cx(
@@ -31,7 +32,7 @@ export const RadioButtonBase = ({ className, isFocusVisible, isSelected, isDisab
                 size === "md" && "size-5 min-h-5 min-w-5",
                 isSelected && !isDisabled && "bg-brand-solid ring-bg-brand-solid",
                 isDisabled && "cursor-not-allowed border-disabled bg-disabled_subtle",
-                isFocusVisible && "outline-2 outline-offset-2 outline-focus-ring",
+                isFocusVisible && (focusRingClassName || "outline-2 outline-offset-2 outline-focus-ring"),
                 className,
             )}
         >
@@ -52,10 +53,11 @@ interface RadioButtonProps extends AriaRadioProps {
     size?: "sm" | "md";
     label?: ReactNode;
     hint?: ReactNode;
+    focusRingClassName?: string;
     ref?: Ref<HTMLLabelElement>;
 }
 
-export const RadioButton = ({ label, hint, className, size = "sm", ...ariaRadioProps }: RadioButtonProps) => {
+export const RadioButton = ({ label, hint, className, focusRingClassName, size = "sm", ...ariaRadioProps }: RadioButtonProps) => {
     const context = useContext(RadioGroupContext);
 
     size = context?.size ?? size;
@@ -94,6 +96,7 @@ export const RadioButton = ({ label, hint, className, size = "sm", ...ariaRadioP
                         isSelected={isSelected}
                         isDisabled={isDisabled}
                         isFocusVisible={isFocusVisible}
+                        focusRingClassName={focusRingClassName}
                         className={label || hint ? "mt-0.5" : ""}
                     />
                     {(label || hint) && (

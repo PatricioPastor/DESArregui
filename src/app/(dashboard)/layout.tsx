@@ -23,6 +23,8 @@ type MeRolesData = {
     firstAllowedPath: string | null;
 };
 
+const ME_ROLES_CACHE = new Map<string, MeRolesData>();
+
 const ALL_NAVIGATION_ITEMS: NavigationItem[] = [
     { label: "Inicio", href: "/", icon: Home01, current: false },
     { label: "Inventario", href: "/stock", icon: Package, current: false, requiredRole: "stock-viewer" },
@@ -48,6 +50,7 @@ export default function DashboardLayout({ children }: Readonly<DashboardLayoutPr
     const pathname = usePathname();
     const router = useRouter();
     const { data: session, isPending } = useSession();
+    const userId = session?.user?.id;
 
     const [meRoles, setMeRoles] = useState<MeRolesData | null>(null);
     const [rolesLoading, setRolesLoading] = useState(true);
@@ -55,13 +58,22 @@ export default function DashboardLayout({ children }: Readonly<DashboardLayoutPr
     useEffect(() => {
         if (isPending) return;
 
-        if (!session?.user) {
+        if (!userId) {
             router.replace("/login");
         }
-    }, [isPending, router, session?.user]);
+    }, [isPending, router, userId]);
 
     useEffect(() => {
         const loadMeRoles = async () => {
+            if (!userId) return;
+
+            const cached = ME_ROLES_CACHE.get(userId);
+            if (cached) {
+                setMeRoles(cached);
+                setRolesLoading(false);
+                return;
+            }
+
             try {
                 setRolesLoading(true);
 
@@ -77,8 +89,13 @@ export default function DashboardLayout({ children }: Readonly<DashboardLayoutPr
                 }
 
                 const json = (await response.json()) as { data?: MeRolesData };
+                const resolvedRoles = json.data ?? null;
 
-                setMeRoles(json.data ?? null);
+                if (resolvedRoles) {
+                    ME_ROLES_CACHE.set(userId, resolvedRoles);
+                }
+
+                setMeRoles(resolvedRoles);
             } catch (error) {
                 console.error("Error loading IAM roles:", error);
                 toast.error("Error", {
@@ -92,10 +109,10 @@ export default function DashboardLayout({ children }: Readonly<DashboardLayoutPr
             }
         };
 
-        if (!session?.user) return;
+        if (!userId) return;
 
         void loadMeRoles();
-    }, [router, session?.user]);
+    }, [router, userId]);
 
     const filteredNavigation = useMemo(() => {
         if (!meRoles) {
@@ -165,7 +182,7 @@ export default function DashboardLayout({ children }: Readonly<DashboardLayoutPr
         <div className="relative min-h-dvh w-full">
             <SidebarNavigationSimple items={filteredNavigation} activeUrl={pathname} />
 
-            <main className="lg:max-w-9xl mx-auto max-h-screen w-full max-w-[1366px] px-4 py-6 sm:px-6 lg:pl-[312px]">{children}</main>
+            <main className="min-h-screen w-full px-4 py-6 sm:px-6 lg:pr-6 lg:pl-[312px]">{children}</main>
         </div>
     );
 }

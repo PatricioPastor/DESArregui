@@ -465,8 +465,7 @@ export function StockTable() {
                 label: "Vinculados",
                 value: formatValue(linkedSotiCount),
                 icon: UploadCloud02,
-subtitle: "Sin asignacion formal",
-
+                subtitle: "Sin asignacion formal",
             },
             {
                 id: "in_transit",
@@ -805,12 +804,11 @@ subtitle: "Sin asignacion formal",
                                                             tooltip={
                                                                 item.soti_info?.is_in_soti
                                                                     ? "Asignar dispositivo (con datos externos)"
-
                                                                     : "Asignar dispositivo manualmente"
                                                             }
                                                             icon={Send01}
                                                             onClick={() => {
-                                                                router.push(`/stock/assign/${item.imei}`);
+                                                                router.push(`/stock/assign?imei=${item.imei}`);
                                                             }}
                                                         />
                                                     )}

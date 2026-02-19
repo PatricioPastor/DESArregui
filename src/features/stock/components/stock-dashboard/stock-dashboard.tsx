@@ -201,8 +201,7 @@ export function StockDashboard() {
                 id: "linked_soti",
                 label: "Vinculados",
                 value: formatValue(linkedSotiCount),
-subtitle: "Sin asignación formal",
-
+                subtitle: "Sin asignación formal",
             },
             {
                 id: "in_transit",
@@ -297,7 +296,7 @@ subtitle: "Sin asignación formal",
                             totalPages={totalPages}
                             onPageChange={setPage}
                             onAssign={(device) => {
-                                router.push(`/stock/assign/${device.imei}`);
+                                router.push(`/stock/assign?imei=${device.imei}`);
                             }}
                             onViewAssignment={(device) => {
                                 setSelectedDevice(device);

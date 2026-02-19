@@ -9,21 +9,23 @@ datasource db {
 }
 
 model User {
-  id               String      @id
-  name             String
-  email            String      @unique
-  emailVerified    Boolean
-  image            String?
-  createdAt        DateTime
-  updatedAt        DateTime
-  role             Role             @default(user)
-  banned           Boolean     @default(false)
-  banReason        String?
-  banExpires       DateTime?
-  isActive         Boolean     @default(false)
-  accounts Account[]
-  sessions Session[]
-  roles    UserAuthRole[]
+  id            String         @id
+  name          String
+  email         String         @unique
+  emailVerified Boolean
+  image         String?
+  createdAt     DateTime
+  updatedAt     DateTime
+  role          Role           @default(user)
+  banned        Boolean        @default(false)
+  banReason     String?
+  banExpires    DateTime?
+  isActive      Boolean        @default(false)
+  accounts      Account[]
+  sessions      Session[]
+  roles         UserAuthRole[]
+  ownedDevicesN1   device_n1[] @relation("DeviceN1Owner")
+  createdDevicesN1 device_n1[] @relation("DeviceN1Creator")
 
   @@map("user")
   @@schema("main_auth")
@@ -77,12 +79,12 @@ model Verification {
 }
 
 model AuthRole {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  label       String   @default("")
+  id          String         @id @default(cuid())
+  name        String         @unique
+  label       String         @default("")
   description String?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
   users       UserAuthRole[]
 
   @@map("auth_role")
@@ -104,13 +106,14 @@ model UserAuthRole {
 }
 
 model phone_model {
-  id         String   @id @default(cuid())
+  id         String      @id @default(cuid())
   brand      String
   model      String
-  color      String?  @default("")
+  color      String?     @default("")
   sku        String?
   storage_gb Int?
   devices    device[]
+  devices_n1 device_n1[]
 
   @@unique([brand, model, storage_gb, color])
   @@map("phone_model")
@@ -118,13 +121,16 @@ model phone_model {
 }
 
 model distributor {
-  id                    String       @id @default(cuid())
-  name                  String       @unique
-  assignments           assignment[]
-  devices               device[]
-  backup_devices        device[]     @relation("DeviceBackupDistributor")
-  purchases             purchase[]
-  sims                  sim[]
+  id                String          @id @default(cuid())
+  name              String          @unique
+  assignments       assignment[]
+  assignments_n1    assignment_n1[]
+  devices           device[]
+  devices_n1        device_n1[]
+  backup_devices    device[]        @relation("DeviceBackupDistributor")
+  backup_devices_n1 device_n1[]     @relation("DeviceN1BackupDistributor")
+  purchases         purchase[]
+  sims              sim[]
 
   @@map("distributor")
   @@schema("phones")
@@ -137,6 +143,7 @@ model purchase {
   invoice_number String?
   purchased_at   DateTime    @default(now())
   devices        device[]
+  devices_n1     device_n1[]
   distributor    distributor @relation(fields: [distributor_id], references: [id], onDelete: Cascade)
 
   @@index([distributor_id])
@@ -145,26 +152,26 @@ model purchase {
 }
 
 model device {
-  id                  String        @id @default(cuid())
-  imei                String        @unique
-  assigned_to         String?
-  created_at          DateTime      @default(now())
-  distributor_id      String?
-  model_id            String
-  purchase_id         String?
-  ticket_id           String?
-  updated_at          DateTime      @updatedAt
-  status              device_status @default(NEW)
-  deleted_at          DateTime?
-  deletion_reason     String?
-  is_deleted          Boolean       @default(false)
-  is_backup           Boolean       @default(false)
+  id                    String        @id @default(cuid())
+  imei                  String        @unique
+  assigned_to           String?
+  created_at            DateTime      @default(now())
+  distributor_id        String?
+  model_id              String
+  purchase_id           String?
+  ticket_id             String?
+  updated_at            DateTime      @updatedAt
+  status                device_status @default(NEW)
+  deleted_at            DateTime?
+  deletion_reason       String?
+  is_deleted            Boolean       @default(false)
+  is_backup             Boolean       @default(false)
   backup_distributor_id String?
-  assignments         assignment[]
-  distributor         distributor?  @relation(fields: [distributor_id], references: [id])
-  backup_distributor  distributor?  @relation("DeviceBackupDistributor", fields: [backup_distributor_id], references: [id])
-  model               phone_model   @relation(fields: [model_id], references: [id], onDelete: SetDefault)
-  purchase            purchase?     @relation(fields: [purchase_id], references: [id])
+  assignments           assignment[]
+  distributor           distributor?  @relation(fields: [distributor_id], references: [id])
+  backup_distributor    distributor?  @relation("DeviceBackupDistributor", fields: [backup_distributor_id], references: [id])
+  model                 phone_model   @relation(fields: [model_id], references: [id], onDelete: SetDefault)
+  purchase              purchase?     @relation(fields: [purchase_id], references: [id])
 
   @@index([model_id])
   @@index([status])
@@ -173,6 +180,97 @@ model device {
   @@index([is_deleted])
   @@index([backup_distributor_id])
   @@map("device")
+  @@schema("phones")
+}
+
+model device_n1 {
+  id                    String          @id @default(cuid())
+  imei                  String          @unique
+  assigned_to           String?
+  owner_user_id         String?
+  created_by_user_id    String?
+  created_at            DateTime        @default(now())
+  distributor_id        String?
+  model_id              String
+  purchase_id           String?
+  ticket_id             String?
+  updated_at            DateTime        @updatedAt
+  status                device_status   @default(NEW)
+  deleted_at            DateTime?
+  deletion_reason       String?
+  is_deleted            Boolean         @default(false)
+  is_backup             Boolean         @default(false)
+  backup_distributor_id String?
+  assignments_n1        assignment_n1[]
+  distributor           distributor?    @relation(fields: [distributor_id], references: [id])
+  backup_distributor    distributor?    @relation("DeviceN1BackupDistributor", fields: [backup_distributor_id], references: [id])
+  model                 phone_model     @relation(fields: [model_id], references: [id], onDelete: SetDefault)
+  purchase              purchase?       @relation(fields: [purchase_id], references: [id])
+  owner_user            User?           @relation("DeviceN1Owner", fields: [owner_user_id], references: [id])
+  created_by_user       User?           @relation("DeviceN1Creator", fields: [created_by_user_id], references: [id])
+
+  @@index([model_id])
+  @@index([status])
+  @@index([assigned_to])
+  @@index([owner_user_id])
+  @@index([created_by_user_id])
+  @@index([ticket_id])
+  @@index([is_deleted])
+  @@index([backup_distributor_id])
+  @@map("device_n1")
+  @@schema("phones")
+}
+
+model assignment_n1 {
+  id                   BigInt        @id @default(autoincrement())
+  device_id            String
+  type                 String        @default("ASSIGN")
+  status               String        @default("active")
+  assignee_name        String
+  assignee_phone       String?
+  assignee_email       String?
+  ticket_id            String?
+  distributor_id       String?
+  expects_return       Boolean       @default(false)
+  expected_return_imei String?
+  assigned_at          DateTime      @default(now())
+  closed_at            DateTime?
+  closure_reason       String?
+  legacy_assignment_id String?       @unique
+  created_at           DateTime      @default(now())
+  updated_at           DateTime      @updatedAt
+  device               device_n1     @relation(fields: [device_id], references: [id], onDelete: Cascade)
+  distributor          distributor?  @relation(fields: [distributor_id], references: [id])
+  shipments_n1         shipment_n1[]
+
+  @@index([status])
+  @@index([ticket_id])
+  @@index([assignee_name])
+  @@index([assigned_at])
+  @@index([device_id])
+  @@index([distributor_id])
+  @@map("assignments_n1")
+  @@schema("phones")
+}
+
+model shipment_n1 {
+  id                   BigInt        @id @default(autoincrement())
+  assignment_id        BigInt
+  leg                  String
+  voucher_id           String?       @unique(map: "shipments_n1_voucher_id_unq")
+  status               String        @default("pending")
+  shipped_at           DateTime?
+  delivered_at         DateTime?
+  notes                String?
+  legacy_assignment_id String?
+  created_at           DateTime      @default(now())
+  updated_at           DateTime      @updatedAt
+  assignment           assignment_n1 @relation(fields: [assignment_id], references: [id], onDelete: Cascade)
+
+  @@unique([assignment_id, leg], map: "shipments_n1_assignment_leg_unq")
+  @@index([status], map: "shipments_n1_status_idx")
+  @@index([assignment_id], map: "shipments_n1_assignment_id_idx")
+  @@map("shipments_n1")
   @@schema("phones")
 }
 
@@ -349,7 +447,6 @@ enum Role {
   @@schema("main_auth")
 }
 
-
 enum sim_provider {
   CLARO
   MOVISTAR
@@ -358,17 +455,17 @@ enum sim_provider {
 }
 
 model sim {
-  id             String        @id @default(cuid())
-  icc            String        @unique
+  id             String       @id @default(cuid())
+  icc            String       @unique
   ip             String?
   status         String
   provider       sim_provider
   distributor_id String?
-  created_at     DateTime      @default(now())
-  updated_at     DateTime      @updatedAt
-  last_sync      DateTime      @default(now())
-  is_active      Boolean       @default(true)
-  distributor    distributor?  @relation(fields: [distributor_id], references: [id])
+  created_at     DateTime     @default(now())
+  updated_at     DateTime     @updatedAt
+  last_sync      DateTime     @default(now())
+  is_active      Boolean      @default(true)
+  distributor    distributor? @relation(fields: [distributor_id], references: [id])
 
   @@index([icc])
   @@index([status])
