@@ -24,6 +24,7 @@ interface SyncResponse {
     created: number;
     updated: number;
     deactivated: number;
+    createdDistributors: number;
     distributorsCreated: number;
     errors: number;
     error?: string;
@@ -69,6 +70,7 @@ export const POST = withAdminOnly(async (request: NextRequest) => {
                     created: 0,
                     updated: 0,
                     deactivated: 0,
+                    createdDistributors: 0,
                     distributorsCreated: 0,
                     errors: 1,
                     error: "Invalid request: syncToken is not a valid date",
@@ -85,6 +87,7 @@ export const POST = withAdminOnly(async (request: NextRequest) => {
                     created: 0,
                     updated: 0,
                     deactivated: 0,
+                    createdDistributors: 0,
                     distributorsCreated: 0,
                     errors: 1,
                     error: "No SIMs provided in the request",
@@ -101,6 +104,7 @@ export const POST = withAdminOnly(async (request: NextRequest) => {
                     created: 0,
                     updated: 0,
                     deactivated: 0,
+                    createdDistributors: 0,
                     distributorsCreated: 0,
                     errors: 1,
                     error: "Invalid request: syncToken is required to finalize without sims",
@@ -266,6 +270,7 @@ export const POST = withAdminOnly(async (request: NextRequest) => {
             created: results.created,
             updated: results.updated,
             deactivated: results.deactivated,
+            createdDistributors: results.distributorsCreated,
             distributorsCreated: results.distributorsCreated,
             errors: results.errors,
         };
@@ -290,6 +295,7 @@ export const POST = withAdminOnly(async (request: NextRequest) => {
                 created: 0,
                 updated: 0,
                 deactivated: 0,
+                createdDistributors: 0,
                 distributorsCreated: 0,
                 errors: 1,
                 error: `Failed to sync SIMs: ${errorMessage}`,
