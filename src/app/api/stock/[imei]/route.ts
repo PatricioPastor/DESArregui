@@ -189,22 +189,6 @@ export const PUT = withAdminOnly(async (request: NextRequest, _session, context:
             updateData.ticket_id = body.ticket ? String(body.ticket).trim() || null : null;
         }
 
-        if (body.purchase_id !== undefined) {
-            if (body.purchase_id && typeof body.purchase_id === "string") {
-                const purchaseRecord = await prisma.purchase.findUnique({
-                    where: { id: body.purchase_id.trim() },
-                });
-
-                if (!purchaseRecord) {
-                    return NextResponse.json({ success: false, error: `Compra "${body.purchase_id}" no encontrada` }, { status: 404 });
-                }
-
-                updateData.purchase_id = purchaseRecord.id;
-            } else {
-                updateData.purchase_id = null;
-            }
-        }
-
         if (Object.keys(updateData).length === 0) {
             return NextResponse.json(
                 {

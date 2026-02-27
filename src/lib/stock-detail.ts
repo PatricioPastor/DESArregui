@@ -50,21 +50,8 @@ const DEVICE_INCLUDE = {
             name: true,
         },
     },
-    purchase: {
-        select: {
-            id: true,
-            invoice_number: true,
-            purchased_at: true,
-            distributor: {
-                select: {
-                    id: true,
-                    name: true,
-                },
-            },
-        },
-    },
     assignments: {
-        orderBy: { at: "desc" as const },
+        orderBy: { assigned_at: "desc" as const },
         include: {
             distributor: {
                 select: {
@@ -72,17 +59,37 @@ const DEVICE_INCLUDE = {
                     name: true,
                 },
             },
-            soti_device: {
-                select: {
-                    id: true,
-                    device_name: true,
-                    assigned_user: true,
-                    status: true,
-                },
+            shipments: {
+                orderBy: { created_at: "desc" as const },
             },
         },
     },
 } as const;
+
+const parseAssignmentContext = (raw: string | null): Record<string, unknown> => {
+    if (!raw) {
+        return {};
+    }
+
+    try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return parsed as Record<string, unknown>;
+        }
+    } catch {
+        return {};
+    }
+
+    return {};
+};
+
+const toOptionalString = (value: unknown): string | null => {
+    return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+};
+
+const pickShipmentByLeg = (shipments: Array<{ leg: string; status: string; delivered_at: Date | null; shipped_at: Date | null; voucher_id: string | null; notes: string | null }>, leg: "OUTBOUND" | "RETURN") => {
+    return shipments.find((shipment) => shipment.leg === leg) || null;
+};
 
 const formatModelDisplay = (model: NonNullable<{ brand: string; model: string; storage_gb: number | null; color: string | null }>) => {
     const parts = [model.brand, model.model, model.storage_gb ? `${model.storage_gb}GB` : null, model.color ? `(${model.color})` : null].filter(Boolean);
@@ -122,12 +129,12 @@ const buildInventoryRecord = (device: any, sotiDevice: any): InventoryRecord => 
                   name: device!.backup_distributor.name,
               }
             : null,
-        asignado_a: device!.assigned_to || "",
-        ticket: device!.ticket_id || "",
+        asignado_a: lastAssignment?.assignee_name || device!.assigned_to || "",
+        ticket: lastAssignment?.ticket_id || device!.ticket_id || "",
         is_assigned: Boolean(device!.assigned_to) || assignments.some((a: any) => a.type === "ASSIGN" && (!a.status || a.status === "active")),
         created_at: device!.created_at.toISOString(),
         updated_at: device!.updated_at.toISOString(),
-        last_assignment_at: lastAssignment?.at.toISOString() || null,
+        last_assignment_at: lastAssignment?.assigned_at?.toISOString() || null,
         assignments_count: assignments.length,
         soti_info: {
             is_in_soti: Boolean(sotiDevice),
@@ -202,12 +209,6 @@ export interface DeviceDetail {
     assignments: AssignmentDetail[];
     tickets: TicketSummary[];
     soti_device: SotiDeviceDetail | null;
-    purchase?: {
-        id: string;
-        invoice_number: string | null;
-        purchased_at: string;
-        distributor: { id: string; name: string } | null;
-    } | null;
 }
 
 export async function getDeviceDetailByImei(imei: string): Promise<DeviceDetail | null> {
@@ -226,34 +227,61 @@ export async function getDeviceDetailByImei(imei: string): Promise<DeviceDetail 
 
     const inventoryRecord = buildInventoryRecord(device, sotiDevice);
 
-    const assignments: AssignmentDetail[] = (device.assignments || []).map((assignment) => ({
-        id: assignment.id,
+    const assignmentsSotiIds = (device.assignments || [])
+        .map((assignment) => toOptionalString(parseAssignmentContext(assignment.closure_reason).soti_device_id))
+        .filter((sotiId): sotiId is string => Boolean(sotiId));
+
+    const assignmentSotiDevices =
+        assignmentsSotiIds.length > 0
+            ? await prisma.soti_device.findMany({
+                  where: { id: { in: assignmentsSotiIds } },
+                  select: {
+                      id: true,
+                      device_name: true,
+                      assigned_user: true,
+                      status: true,
+                  },
+              })
+            : [];
+
+    const assignmentSotiMap = new Map(assignmentSotiDevices.map((assignmentSotiDevice) => [assignmentSotiDevice.id, assignmentSotiDevice]));
+
+    const assignments: AssignmentDetail[] = (device.assignments || []).map((assignment) => {
+        const context = parseAssignmentContext(assignment.closure_reason);
+        const outbound = pickShipmentByLeg(assignment.shipments, "OUTBOUND");
+        const returnLeg = pickShipmentByLeg(assignment.shipments, "RETURN");
+        const assignmentSotiId = toOptionalString(context.soti_device_id);
+        const assignmentSotiDevice = assignmentSotiId ? assignmentSotiMap.get(assignmentSotiId) : null;
+
+        return {
+            id: assignment.id.toString(),
         type: assignment.type,
         status: assignment.status || null,
-        assignee_name: assignment.assignee_name || assignment.assigned_to || null,
+        assignee_name: assignment.assignee_name || null,
         assignee_phone: assignment.assignee_phone || null,
         distributor: assignment.distributor ? { id: assignment.distributor.id, name: assignment.distributor.name } : null,
-        delivery_location: assignment.delivery_location || null,
-        contact_details: assignment.contact_details || null,
-        shipping_voucher_id: assignment.shipping_voucher_id || null,
-        shipping_status: assignment.shipping_status || null,
-        shipped_at: assignment.shipped_at?.toISOString() || null,
-        delivered_at: assignment.delivered_at?.toISOString() || null,
+        delivery_location: toOptionalString(context.delivery_location) || toOptionalString(context.city),
+        contact_details: toOptionalString(context.contact_details) || toOptionalString(context.notes),
+        shipping_voucher_id: outbound?.voucher_id || null,
+        shipping_status: outbound?.status || null,
+        shipped_at: outbound?.shipped_at?.toISOString() || null,
+        delivered_at: outbound?.delivered_at?.toISOString() || null,
         expects_return: assignment.expects_return,
-        return_device_imei: assignment.return_device_imei || null,
-        return_status: assignment.return_status || null,
-        return_received_at: assignment.return_received_at?.toISOString() || null,
+        return_device_imei: assignment.expected_return_imei || null,
+        return_status: returnLeg?.status || null,
+        return_received_at: returnLeg?.delivered_at?.toISOString() || null,
         ticket_id: assignment.ticket_id || null,
-        at: assignment.at.toISOString(),
-        soti_device: assignment.soti_device
+        at: assignment.assigned_at.toISOString(),
+        soti_device: assignmentSotiDevice
             ? {
-                  id: assignment.soti_device.id,
-                  device_name: assignment.soti_device.device_name,
-                  assigned_user: assignment.soti_device.assigned_user,
-                  status: assignment.soti_device.status,
+                  id: assignmentSotiDevice.id,
+                  device_name: assignmentSotiDevice.device_name,
+                  assigned_user: assignmentSotiDevice.assigned_user,
+                  status: assignmentSotiDevice.status,
               }
             : null,
-    }));
+    };
+    });
 
     const ticketIds = new Set<string>();
     if (device.ticket_id) {
@@ -304,25 +332,10 @@ export async function getDeviceDetailByImei(imei: string): Promise<DeviceDetail 
         };
     }
 
-    const purchase = device.purchase
-        ? {
-              id: device.purchase.id,
-              invoice_number: device.purchase.invoice_number,
-              purchased_at: device.purchase.purchased_at.toISOString(),
-              distributor: device.purchase.distributor
-                  ? {
-                        id: device.purchase.distributor.id,
-                        name: device.purchase.distributor.name,
-                    }
-                  : null,
-          }
-        : null;
-
     return {
         inventory: inventoryRecord,
         assignments,
         tickets,
         soti_device: sotiDetail,
-        purchase,
     };
 }

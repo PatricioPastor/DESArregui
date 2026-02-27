@@ -16,7 +16,7 @@ import { CreateStockModal } from "@/features/stock/components/create/create-stoc
 import { useDebounce } from "@/hooks/use-debounce";
 import { clearFilteredStockCache, useFilteredStockData } from "@/hooks/use-stock-data";
 import type { InventoryRecord } from "@/lib/types";
-import { formatDate, getDeviceState, getDistribuidoraName, getTicketInfo, isRecordAssigned, isRecordAvailable } from "@/utils/stock-utils";
+import { formatDate, getDeviceState, getDistribuidoraName, getTicketInfo, isRecordAssigned } from "@/utils/stock-utils";
 import { ModelsAndAccessoriesTab } from "./models-and-accessories-tab";
 
 const PAGE_SIZE = 16;
@@ -24,7 +24,13 @@ const SOTI_LICENSES_TOTAL = 1944;
 const SOTI_LICENSES_IN_USE = 1901;
 
 type MainContextTab = "mine" | "inventory" | "catalog";
-type SidebarCategory = "available" | "used" | "assigned" | "shipping";
+type SidebarCategory = "new" | "used" | "assigned";
+
+const SIDEBAR_CATEGORY_TO_API = {
+    new: "NEW",
+    used: "USED",
+    assigned: "ASSIGNED",
+} as const;
 
 const MAIN_CONTEXT_TABS = [
     { id: "mine" as const, label: "Asignados a mí" },
@@ -33,24 +39,10 @@ const MAIN_CONTEXT_TABS = [
 ];
 
 const SIDEBAR_CATEGORIES = [
-    { id: "available" as const, label: "Disponibles" },
+    { id: "new" as const, label: "Nuevos" },
     { id: "used" as const, label: "Usados" },
     { id: "assigned" as const, label: "Asignados" },
-    { id: "shipping" as const, label: "En envío" },
 ];
-
-const getLatestAssignment = (record: InventoryRecord) => {
-    const assignments = (record.raw?.assignments as any[]) || [];
-    return assignments[0] ?? null;
-};
-
-const hasShippingInProgress = (record: InventoryRecord) => {
-    const assignment = getLatestAssignment(record);
-    if (!assignment || assignment.status !== "active") return false;
-
-    const shippingStatus = typeof assignment.shipping_status === "string" ? assignment.shipping_status.toLowerCase() : "";
-    return Boolean(assignment.shipping_voucher_id) || shippingStatus === "pending" || shippingStatus === "shipped";
-};
 
 const sortByNewestUpdate = (records: InventoryRecord[]) => {
     return [...records].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
@@ -162,7 +154,7 @@ export function StockN1Dashboard() {
     const [mainContext, setMainContext] = useState<MainContextTab>("mine");
     const [globalSearch, setGlobalSearch] = useState("");
     const [page, setPage] = useState(1);
-    const [sidebarCategory, setSidebarCategory] = useState<SidebarCategory>("available");
+    const [sidebarCategory, setSidebarCategory] = useState<SidebarCategory>("new");
     const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
     const [copyImeiState, setCopyImeiState] = useState<"idle" | "copied" | "error">("idle");
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -179,13 +171,21 @@ export function StockN1Dashboard() {
     const debouncedSearch = useDebounce(globalSearch, 300);
 
     const isMineContext = mainContext === "mine";
-    const listFilters = useMemo(() => (isMineContext ? { mine: true } : undefined), [isMineContext]);
-    const { data, isLoading, error, refresh } = useFilteredStockData(debouncedSearch, listFilters, "/api/stock-n1");
+    const listFilters = useMemo(
+        () => ({
+            mine: isMineContext,
+            ownerId: !isMineContext && ownerFilterId !== "all" ? ownerFilterId : null,
+            category: SIDEBAR_CATEGORY_TO_API[sidebarCategory],
+            page,
+            limit: PAGE_SIZE,
+        }),
+        [isMineContext, ownerFilterId, page, sidebarCategory],
+    );
+    const { data, isLoading, error, refresh, summary, pagination } = useFilteredStockData(debouncedSearch, listFilters, "/api/stock-n1");
 
-    const availableRecords = data.filter((record) => isRecordAvailable(record) && (record.status === "NEW" || record.status === "REPAIRED"));
+    const newRecords = data.filter((record) => record.status === "NEW");
     const usedRecords = data.filter((record) => record.status === "USED");
     const assignedRecords = data.filter((record) => isRecordAssigned(record));
-    const shippingRecords = data.filter((record) => hasShippingInProgress(record));
 
     const ownerOptions = useMemo<SelectItemType[]>(() => {
         const byOwner = new Map<string, string>();
@@ -203,31 +203,21 @@ export function StockN1Dashboard() {
         return [{ id: "all", label: "Todos" }, ...dynamicOwners];
     }, [data]);
 
-    let records = data;
-    if (sidebarCategory === "available") records = availableRecords;
-    if (sidebarCategory === "used") records = usedRecords;
-    if (sidebarCategory === "assigned") records = assignedRecords;
-    if (sidebarCategory === "shipping") records = shippingRecords;
+    const records = sortByNewestUpdate(data);
 
-    if (!isMineContext && ownerFilterId !== "all") {
-        records = records.filter((record) => record.owner_user_id === ownerFilterId);
-    }
-
-    records = sortByNewestUpdate(records);
-
+    const assignedDevicesCount = summary?.assignedDevices ?? assignedRecords.length;
+    const activeAssignmentsCount = summary?.activeAssignments ?? assignedDevicesCount;
     const categoryCounts = {
-        available: availableRecords.length,
-        used: usedRecords.length,
-        assigned: assignedRecords.length,
-        shipping: shippingRecords.length,
+        new: summary?.newDevices ?? newRecords.length,
+        used: summary?.usedDevices ?? usedRecords.length,
+        assigned: assignedDevicesCount,
     };
     const activeSidebarLabel = SIDEBAR_CATEGORIES.find((item) => item.id === sidebarCategory)?.label || "Inventario";
     const sotiLicensesFree = Math.max(0, SOTI_LICENSES_TOTAL - SOTI_LICENSES_IN_USE);
     const sotiUsagePercent = Math.min(100, Math.round((SOTI_LICENSES_IN_USE / SOTI_LICENSES_TOTAL) * 100));
 
-    const start = (page - 1) * PAGE_SIZE;
-    const paginatedRecords = records.slice(start, start + PAGE_SIZE);
-    const totalPages = Math.max(1, Math.ceil(records.length / PAGE_SIZE));
+    const paginatedRecords = records;
+    const totalPages = pagination?.totalPages || 1;
 
     const selectedRecord = records.find((record) => record.id === selectedRecordId) || paginatedRecords[0] || null;
 
@@ -439,7 +429,8 @@ export function StockN1Dashboard() {
             {(mainContext === "inventory" || mainContext === "mine") && (
                 <div className="grid gap-3 xl:h-[calc(100dvh-22rem)] xl:grid-cols-[260px_minmax(0,1fr)_340px]">
                     <aside className="flex h-full min-h-0 flex-col rounded-2xl border border-secondary bg-primary p-3 shadow-sm">
-                        <h2 className="text-sm font-semibold text-primary">Filtros Dinámicos</h2>
+                                    <h2 className="text-sm font-semibold text-primary">Filtros Dinámicos</h2>
+                                    <p className="mt-1 text-xs text-secondary">{activeAssignmentsCount} asignaciones activas en {assignedDevicesCount} dispositivos</p>
 
                         <nav className="mt-3 space-y-2">
                             {SIDEBAR_CATEGORIES.map((item) => {

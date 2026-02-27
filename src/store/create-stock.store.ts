@@ -15,7 +15,6 @@ interface IndividualStockData {
     modelo: string;
     distribuidora: string;
     status: string;
-    purchase_id?: string;
 }
 
 interface BulkStockData {
@@ -23,7 +22,6 @@ interface BulkStockData {
     distribuidora: string;
     imeis: string[];
     status: string;
-    purchase_id?: string;
 }
 
 interface CreateStockState {
@@ -61,7 +59,6 @@ const initialIndividualData: IndividualStockData = {
     modelo: "",
     distribuidora: "",
     status: "NEW",
-    purchase_id: "",
 };
 
 const initialBulkData: BulkStockData = {
@@ -69,7 +66,6 @@ const initialBulkData: BulkStockData = {
     distribuidora: "",
     imeis: [],
     status: "NEW",
-    purchase_id: "",
 };
 
 export const useCreateStockStore = create<CreateStockState>()(
@@ -145,7 +141,6 @@ export const useCreateStockStore = create<CreateStockState>()(
                             modelo: state.individualData.modelo,
                             distribuidora: state.individualData.distribuidora,
                             status: state.individualData.status || "NEW",
-                            purchase_id: state.individualData.purchase_id?.trim() || undefined,
                         };
 
                         // Submit individual stock
@@ -203,7 +198,6 @@ export const useCreateStockStore = create<CreateStockState>()(
                                     modelo: state.bulkData.modelo,
                                     distribuidora: state.bulkData.distribuidora,
                                     status: state.bulkData.status || "NEW",
-                                    purchase_id: state.bulkData.purchase_id?.trim() || undefined,
                                 };
 
                                 const response = await fetch("/api/stock-n1", {

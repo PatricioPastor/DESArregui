@@ -1,106 +1,111 @@
-import prisma from "@/lib/prisma";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withAdminOnly } from "@/lib/api-auth";
+import prisma from "@/lib/prisma";
 
 type RouteParams = {
-  id: string;
+    id: string;
 };
 
-// POST - Finalizar envío (marcar como entregado)
-export const POST = withAdminOnly(async (request: Request, session, context: { params: Promise<RouteParams> }) => {
-  const { id: assignmentId } = await context.params;
+const SHIPMENT_LEG = {
+    OUTBOUND: "OUTBOUND",
+    RETURN: "RETURN",
+} as const;
 
-  if (!assignmentId) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "ID de asignación requerido",
-      },
-      { status: 400 }
-    );
-  }
+const resolveCanonicalAssignmentId = async (rawId: string): Promise<bigint | null> => {
+    try {
+        return BigInt(rawId);
+    } catch {
+        const rows = await prisma.$queryRaw<Array<{ id: bigint }>>`
+            SELECT id
+            FROM phones.assignment
+            WHERE legacy_assignment_id = ${rawId}
+            LIMIT 1
+        `;
 
-  try {
-    // Verificar que la asignación existe
-    const assignment = await prisma.assignment.findUnique({
-      where: { id: assignmentId },
-    });
+        return rows[0]?.id ?? null;
+    }
+};
 
-    if (!assignment) {
-      return NextResponse.json(
-        { error: `No se encontró la asignación con ID ${assignmentId}` },
-        { status: 404 }
-      );
+export const POST = withAdminOnly(async (_request: Request, _session, context: { params: Promise<RouteParams> }) => {
+    const { id: rawAssignmentId } = await context.params;
+
+    if (!rawAssignmentId) {
+        return NextResponse.json(
+            {
+                success: false,
+                error: "ID de asignación requerido",
+            },
+            { status: 400 },
+        );
     }
 
-    // Verificar que la asignación está activa
-    if (assignment.status !== "active") {
-      return NextResponse.json(
-        { error: "Solo se puede finalizar el envío de asignaciones activas" },
-        { status: 400 }
-      );
+    try {
+        const assignmentId = await resolveCanonicalAssignmentId(rawAssignmentId);
+        if (!assignmentId) {
+            return NextResponse.json({ error: `No se encontró la asignación con ID ${rawAssignmentId}` }, { status: 404 });
+        }
+
+        const assignment = await prisma.assignment.findUnique({
+            where: { id: assignmentId },
+            include: {
+                shipments: true,
+            },
+        });
+
+        if (!assignment) {
+            return NextResponse.json({ error: `No se encontró la asignación con ID ${rawAssignmentId}` }, { status: 404 });
+        }
+
+        if (assignment.status !== "active") {
+            return NextResponse.json({ error: "Solo se puede finalizar el envío de asignaciones activas" }, { status: 400 });
+        }
+
+        const outboundShipment = assignment.shipments.find((shipment) => shipment.leg === SHIPMENT_LEG.OUTBOUND) || null;
+
+        if (!outboundShipment || !outboundShipment.voucher_id) {
+            return NextResponse.json({ error: "Esta asignación no tiene vale de envío" }, { status: 400 });
+        }
+
+        if (outboundShipment.status !== "shipped") {
+            return NextResponse.json({ error: 'El envío debe estar en estado "shipped" para poder finalizarlo' }, { status: 400 });
+        }
+
+        await prisma.$transaction(async (tx) => {
+            await tx.shipment.update({
+                where: { id: outboundShipment.id },
+                data: {
+                    status: "delivered",
+                    shipped_at: outboundShipment.shipped_at || new Date(),
+                    delivered_at: outboundShipment.delivered_at || new Date(),
+                },
+            });
+
+            if (assignment.expects_return) {
+                const returnShipment = assignment.shipments.find((shipment) => shipment.leg === SHIPMENT_LEG.RETURN);
+                if (!returnShipment) {
+                    await tx.shipment.create({
+                        data: {
+                            assignment_id: assignment.id,
+                            leg: SHIPMENT_LEG.RETURN,
+                            status: "pending",
+                        },
+                    });
+                }
+            }
+        });
+
+        return NextResponse.json({
+            success: true,
+            message: "Envío marcado como entregado exitosamente",
+        });
+    } catch (error) {
+        console.error(`POST /api/assignments/${rawAssignmentId}/shipping/deliver error:`, error);
+
+        return NextResponse.json(
+            {
+                error: error instanceof Error ? error.message : "Error interno del servidor",
+            },
+            { status: 500 },
+        );
     }
-
-    // Verificar que tiene vale de envío
-    if (!assignment.shipping_voucher_id) {
-      return NextResponse.json(
-        { error: "Esta asignación no tiene vale de envío" },
-        { status: 400 }
-      );
-    }
-
-    // Verificar que está en estado shipped
-    if (assignment.shipping_status !== "shipped") {
-      return NextResponse.json(
-        { error: `El envío debe estar en estado "shipped" para poder finalizarlo` },
-        { status: 400 }
-      );
-    }
-
-    // Preparar datos de actualización
-    const updateData: any = {
-      shipping_status: "delivered",
-      delivered_at: new Date(),
-    };
-
-    // Si no tenía shipped_at, establecerlo ahora
-    if (!assignment.shipped_at) {
-      updateData.shipped_at = new Date();
-    }
-
-    // Si espera devolución, auto-setear return_status a "pending"
-    if (assignment.expects_return && !assignment.return_status) {
-      updateData.return_status = "pending";
-    }
-
-    // Actualizar la asignación
-    await prisma.assignment.update({
-      where: { id: assignmentId },
-      data: updateData,
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: "Envío marcado como entregado exitosamente",
-    });
-  } catch (error: any) {
-    console.error(`POST /api/assignments/${assignmentId}/shipping/deliver error:`, error);
-
-    if (error?.code === "P2025") {
-      return NextResponse.json(
-        {
-          error: `No se encontró la asignación con ID ${assignmentId}`,
-        },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Error interno del servidor",
-      },
-      { status: 500 }
-    );
-  }
 });
-

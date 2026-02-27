@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { InventoryModelOption, InventoryRecord, InventoryResponse, InventoryStatusSummary } from "@/lib/types";
+import type { InventoryModelOption, InventoryPagination, InventoryRecord, InventoryResponse, InventoryScopeSummary, InventoryStatusSummary } from "@/lib/types";
 
 const FILTERED_STOCK_CACHE_TTL_MS = 2 * 60 * 1000;
 
@@ -9,6 +9,8 @@ type FilteredStockCacheValue = {
     statusSummary: InventoryStatusSummary[];
     lastUpdated: string | null;
     modelOptions: InventoryModelOption[];
+    summary: InventoryScopeSummary | null;
+    pagination: InventoryPagination | null;
 };
 
 const filteredStockCache = new Map<string, { timestamp: number; value: FilteredStockCacheValue }>();
@@ -170,6 +172,11 @@ interface StockFilters {
     backup?: string | null; // "true" | "false" | null
     backup_distributor?: string | null;
     mine?: boolean;
+    ownerId?: string | null;
+    imei?: string | null;
+    category?: "NEW" | "USED" | "ASSIGNED" | null;
+    page?: number;
+    limit?: number;
 }
 
 export function useFilteredStockData(searchQuery: string = "", filters?: StockFilters, apiPath: string = "/api/stock") {
@@ -180,6 +187,8 @@ export function useFilteredStockData(searchQuery: string = "", filters?: StockFi
     const [totalRecords, setTotalRecords] = useState(0);
     const [statusSummary, setStatusSummary] = useState<InventoryStatusSummary[]>([]);
     const [modelOptions, setModelOptions] = useState<InventoryModelOption[]>([]);
+    const [summary, setSummary] = useState<InventoryScopeSummary | null>(null);
+    const [pagination, setPagination] = useState<InventoryPagination | null>(null);
     const latestRequestKeyRef = useRef<string>("");
 
     const applyPayload = useCallback((payload: FilteredStockCacheValue) => {
@@ -188,6 +197,8 @@ export function useFilteredStockData(searchQuery: string = "", filters?: StockFi
         setStatusSummary(payload.statusSummary);
         setLastUpdated(payload.lastUpdated);
         setModelOptions(payload.modelOptions);
+        setSummary(payload.summary);
+        setPagination(payload.pagination);
     }, []);
 
     const fetchFilteredData = useCallback(
@@ -250,6 +261,21 @@ export function useFilteredStockData(searchQuery: string = "", filters?: StockFi
                 if (currentFilters.mine === true) {
                     url.searchParams.set("mine", "true");
                 }
+                if (currentFilters.ownerId) {
+                    url.searchParams.set("owner_id", currentFilters.ownerId);
+                }
+                if (currentFilters.imei) {
+                    url.searchParams.set("imei", currentFilters.imei);
+                }
+                if (currentFilters.category) {
+                    url.searchParams.set("category", currentFilters.category);
+                }
+                if (typeof currentFilters.page === "number" && Number.isFinite(currentFilters.page) && currentFilters.page > 0) {
+                    url.searchParams.set("page", String(Math.trunc(currentFilters.page)));
+                }
+                if (typeof currentFilters.limit === "number" && Number.isFinite(currentFilters.limit) && currentFilters.limit > 0) {
+                    url.searchParams.set("limit", String(Math.trunc(currentFilters.limit)));
+                }
 
                 const requestPromise = (async (): Promise<FilteredStockCacheValue> => {
                     const response = await fetch(url.toString());
@@ -270,6 +296,8 @@ export function useFilteredStockData(searchQuery: string = "", filters?: StockFi
                         statusSummary: result.statusSummary || [],
                         lastUpdated: result.lastUpdated || null,
                         modelOptions: result.modelOptions || [],
+                        summary: result.summary || null,
+                        pagination: result.pagination || null,
                     };
                 })();
 
@@ -320,6 +348,8 @@ export function useFilteredStockData(searchQuery: string = "", filters?: StockFi
         totalRecords,
         statusSummary,
         modelOptions,
+        summary,
+        pagination,
         refresh,
     };
 }

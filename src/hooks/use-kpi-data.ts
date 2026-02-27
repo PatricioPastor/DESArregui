@@ -21,9 +21,10 @@ interface UseKpiDataOptions {
     startDate?: string;
     endDate?: string;
     enabled?: boolean;
+    surface?: "reports_kpis" | "home_kpis";
 }
 
-export function useKpiData({ startDate, endDate, enabled = true }: UseKpiDataOptions = {}) {
+export function useKpiData({ startDate, endDate, enabled = true, surface }: UseKpiDataOptions = {}) {
     const [data, setData] = useState<KpiData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -36,6 +37,7 @@ export function useKpiData({ startDate, endDate, enabled = true }: UseKpiDataOpt
             const params = new URLSearchParams();
             if (startDate) params.append("start_date", startDate);
             if (endDate) params.append("end_date", endDate);
+            if (surface) params.append("surface", surface);
 
             const response = await fetch(`/api/reports/kpis?${params}`);
 
@@ -62,7 +64,7 @@ export function useKpiData({ startDate, endDate, enabled = true }: UseKpiDataOpt
         }
 
         fetchKpiData();
-    }, [enabled, startDate, endDate]);
+    }, [enabled, startDate, endDate, surface]);
 
     const refetch = async () => {
         await fetchKpiData();

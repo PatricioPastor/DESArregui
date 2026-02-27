@@ -36,10 +36,10 @@ export const DELETE = withRoles(["stock-viewer"], async (request: NextRequest, _
         const reason = parsed.data.reason?.trim() || null;
         const finalStatus = parsed.data.final_status || null;
 
-        const device = await prisma.device_n1.findUnique({
+        const device = await prisma.device.findUnique({
             where: { id },
             include: {
-                assignments_n1: {
+                assignments: {
                     where: {
                         status: "active",
                     },
@@ -58,11 +58,11 @@ export const DELETE = withRoles(["stock-viewer"], async (request: NextRequest, _
             return NextResponse.json({ success: false, error: "El dispositivo ya está eliminado" }, { status: 400 });
         }
 
-        if (device.assignments_n1.length > 0) {
+        if (device.assignments.length > 0) {
             return NextResponse.json({ success: false, error: "No se puede eliminar un dispositivo con asignación activa" }, { status: 400 });
         }
 
-        await prisma.device_n1.update({
+        await prisma.device.update({
             where: { id },
             data: {
                 is_deleted: true,

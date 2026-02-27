@@ -114,6 +114,7 @@ export default function HomePage() {
         startDate: quarterRange?.start,
         endDate: quarterRange?.end,
         enabled: canViewReports && Boolean(quarterRange),
+        surface: "home_kpis",
     });
 
     const {

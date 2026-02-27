@@ -1,118 +1,135 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { device_status } from "@/generated/prisma";
 import { withAdminOnly } from "@/lib/api-auth";
+import prisma from "@/lib/prisma";
 
 type RouteParams = {
-  id: string;
+    id: string;
 };
 
-// Schema de validación para cerrar asignación
 const CloseAssignmentSchema = z.object({
-  reason: z.string().optional(),
-  device_returned: z.boolean().default(false),
+    reason: z.string().optional(),
+    device_returned: z.boolean().default(false),
 });
 
-// POST - Cerrar/finalizar una asignación activa
-export const POST = withAdminOnly(async (request: Request, session, context: { params: Promise<RouteParams> }) => {
-  const { id: assignmentId } = await context.params;
+const resolveCanonicalAssignmentId = async (rawId: string): Promise<bigint | null> => {
+    try {
+        return BigInt(rawId);
+    } catch {
+        const rows = await prisma.$queryRaw<Array<{ id: bigint }>>`
+            SELECT id
+            FROM phones.assignment
+            WHERE legacy_assignment_id = ${rawId}
+            LIMIT 1
+        `;
 
-  if (!assignmentId) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "ID de asignación requerido",
-      },
-      { status: 400 }
-    );
-  }
+        return rows[0]?.id ?? null;
+    }
+};
 
-  try {
-    const body = await request.json();
-
-    // Validar datos de entrada
-    const validationResult = CloseAssignmentSchema.safeParse(body);
-    if (!validationResult.success) {
-      return NextResponse.json(
-        {
-          error: "Datos inválidos",
-          details: validationResult.error.cause,
-        },
-        { status: 400 }
-      );
+const parseContext = (raw: string | null): Record<string, unknown> => {
+    if (!raw) {
+        return {};
     }
 
-    const { reason, device_returned } = validationResult.data;
-
-    // Verificar que la asignación existe
-    const assignment = await prisma.assignment.findUnique({
-      where: { id: assignmentId },
-      include: {
-        device: true,
-      },
-    });
-
-    if (!assignment) {
-      return NextResponse.json(
-        { error: `No se encontró la asignación con ID ${assignmentId}` },
-        { status: 404 }
-      );
+    try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return parsed as Record<string, unknown>;
+        }
+    } catch {
+        return {};
     }
 
-    // Verificar que la asignación está activa
-    if (assignment.status !== "active") {
-      return NextResponse.json(
-        { error: "La asignación ya está cerrada" },
-        { status: 400 }
-      );
+    return {};
+};
+
+export const POST = withAdminOnly(async (request: Request, _session, context: { params: Promise<RouteParams> }) => {
+    const { id: rawAssignmentId } = await context.params;
+
+    if (!rawAssignmentId) {
+        return NextResponse.json(
+            {
+                success: false,
+                error: "ID de asignación requerido",
+            },
+            { status: 400 },
+        );
     }
 
-    // Actualizar la asignación en una transacción
-    await prisma.$transaction(async (tx) => {
-      // Cerrar la asignación
-      await tx.assignment.update({
-        where: { id: assignmentId },
-        data: {
-          status: "completed",
-          closure_reason: reason || null,
-          closed_at: new Date(),
-        },
-      });
+    try {
+        const validationResult = CloseAssignmentSchema.safeParse(await request.json());
+        if (!validationResult.success) {
+            return NextResponse.json(
+                {
+                    error: "Datos inválidos",
+                    details: validationResult.error.issues,
+                },
+                { status: 400 },
+            );
+        }
 
-      // Si el dispositivo fue devuelto o simplemente cerramos la asignación,
-      // actualizar el estado del dispositivo a USED
-      if (assignment.device_id) {
-        await tx.device.update({
-          where: { id: assignment.device_id },
-          data: {
-            status: device_returned ? "USED" : "USED",
-            assigned_to: null,
-          },
+        const assignmentId = await resolveCanonicalAssignmentId(rawAssignmentId);
+        if (!assignmentId) {
+            return NextResponse.json({ error: `No se encontró la asignación con ID ${rawAssignmentId}` }, { status: 404 });
+        }
+
+        const { reason, device_returned } = validationResult.data;
+
+        const assignment = await prisma.assignment.findUnique({
+            where: { id: assignmentId },
+            include: {
+                device: true,
+            },
         });
-      }
-    });
 
-    return NextResponse.json({
-      success: true,
-      message: `Asignación cerrada correctamente`,
-    });
-  } catch (error: any) {
-    console.error(`POST /api/assignments/${assignmentId}/close error:`, error);
+        if (!assignment) {
+            return NextResponse.json({ error: `No se encontró la asignación con ID ${rawAssignmentId}` }, { status: 404 });
+        }
 
-    if (error?.code === "P2025") {
-      return NextResponse.json(
-        {
-          error: `No se encontró la asignación con ID ${assignmentId}`,
-        },
-        { status: 404 }
-      );
+        if (assignment.status !== "active") {
+            return NextResponse.json({ error: "La asignación ya está cerrada" }, { status: 400 });
+        }
+
+        await prisma.$transaction(async (tx) => {
+            const previousContext = parseContext(assignment.closure_reason);
+            const mergedContext = {
+                ...previousContext,
+                close_reason: reason?.trim() || null,
+                device_returned,
+            };
+
+            await tx.assignment.update({
+                where: { id: assignment.id },
+                data: {
+                    status: "completed",
+                    closed_at: new Date(),
+                    closure_reason: JSON.stringify(mergedContext),
+                },
+            });
+
+            await tx.device.update({
+                where: { id: assignment.device_id },
+                data: {
+                    status: device_status.USED,
+                    assigned_to: null,
+                },
+            });
+        });
+
+        return NextResponse.json({
+            success: true,
+            message: "Asignación cerrada correctamente",
+        });
+    } catch (error) {
+        console.error(`POST /api/assignments/${rawAssignmentId}/close error:`, error);
+
+        return NextResponse.json(
+            {
+                error: error instanceof Error ? error.message : "Error interno del servidor",
+            },
+            { status: 500 },
+        );
     }
-
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Error interno del servidor",
-      },
-      { status: 500 }
-    );
-  }
 });

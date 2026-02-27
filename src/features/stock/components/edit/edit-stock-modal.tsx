@@ -30,7 +30,6 @@ interface EditFormState {
   status: string;
   asignado_a: string;
   ticket: string;
-  purchase_id: string;
   is_backup: boolean;
   backup_distributor_id: string;
 }
@@ -42,7 +41,6 @@ const initialFormState: EditFormState = {
   status: "NEW",
   asignado_a: "",
   ticket: "",
-  purchase_id: "",
   is_backup: false,
   backup_distributor_id: "",
 };
@@ -95,7 +93,6 @@ export function EditStockModal({ open, onOpenChange, device, onSuccess }: EditSt
           status: inventory.status,
           asignado_a: inventory.asignado_a || "",
           ticket: inventory.ticket || "",
-          purchase_id: detailResult.data.purchase?.id || "",
           is_backup: inventory.is_backup || false,
           backup_distributor_id: inventory.backup_distributor_id || "",
         });
@@ -161,7 +158,6 @@ export function EditStockModal({ open, onOpenChange, device, onSuccess }: EditSt
         status: formState.status,
         asignado_a: formState.asignado_a?.trim() || null,
         ticket: formState.ticket?.trim() || null,
-        purchase_id: formState.purchase_id?.trim() || null,
         is_backup: formState.is_backup,
         backup_distributor_id: formState.backup_distributor_id || null,
       };
@@ -265,14 +261,6 @@ export function EditStockModal({ open, onOpenChange, device, onSuccess }: EditSt
             placeholder="Identificador de ticket"
             value={formState.ticket}
             onChange={(value) => setFormState((prev) => ({ ...prev, ticket: value }))}
-          />
-
-          <Input
-            id="purchase_id"
-            label="Ticket de compra (opcional)"
-            placeholder="Identificador de compra"
-            value={formState.purchase_id}
-            onChange={(value) => setFormState((prev) => ({ ...prev, purchase_id: value }))}
           />
 
           {/* Backup Section */}

@@ -51,7 +51,7 @@ export function DeviceDetailClient({ detail, statusLabel, statusColor, canManual
     return_status?: string | null;
     return_device_imei?: string | null;
   } | null>(null);
-  const { inventory, assignments, tickets, purchase } = detail;
+  const { inventory, assignments, tickets } = detail;
   const currentAssignment =
     assignments.find((assignment) => (assignment.status || "").toLowerCase() === "active") ||
     assignments[0] ||
@@ -250,18 +250,6 @@ export function DeviceDetailClient({ detail, statusLabel, statusColor, canManual
                   <dt className="w-32 text-secondary">Ultima asignacion</dt>
                   <dd>{formatInventoryDate(inventory.last_assignment_at)}</dd>
                 </div>
-                {purchase ? (
-                  <div className="flex gap-2">
-                    <dt className="w-32 text-secondary">Compra</dt>
-                    <dd>
-                      <div className="flex flex-col">
-                        <span>Factura: {purchase.invoice_number || "N/A"}</span>
-                        <span>Fecha: {formatInventoryDate(purchase.purchased_at, false)}</span>
-                        <span>Proveedor: {purchase.distributor?.name || "Sin datos"}</span>
-                      </div>
-                    </dd>
-                  </div>
-                ) : null}
               </dl>
             </div>
 

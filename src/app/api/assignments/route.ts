@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { device_status } from "@/generated/prisma";
+import { device_status, type Prisma } from "@/generated/prisma";
 import { withAdminOnly, withAuth } from "@/lib/api-auth";
+import { evaluateParity } from "@/lib/migration-parity";
+import { captureParityEvidence } from "@/lib/migration-parity-store";
+import { resolveSourceMode } from "@/lib/migration-source-mode";
+import { toHomeShippingParitySnapshot } from "@/lib/migration-surface-parity";
 import prisma from "@/lib/prisma";
 
-// Schema de validación para la creación de asignaciones
 const CreateAssignmentSchema = z.object({
     device_id: z.string().min(1, "El ID del dispositivo es requerido"),
     soti_device_id: z.string().optional().nullable(),
@@ -20,15 +23,145 @@ const CreateAssignmentSchema = z.object({
     return_device_imei: z.string().nullable().optional(),
 });
 
-// Función para generar un ID único de vale de envío
-function generateShippingVoucherId(): string {
+const SHIPMENT_LEG = {
+    OUTBOUND: "OUTBOUND",
+    RETURN: "RETURN",
+} as const;
+
+type ShipmentLeg = (typeof SHIPMENT_LEG)[keyof typeof SHIPMENT_LEG];
+
+type AssignmentWithRelations = Prisma.assignmentGetPayload<{
+    include: {
+        device: {
+            include: {
+                model: true;
+            };
+        };
+        distributor: true;
+        shipments: {
+            orderBy: {
+                created_at: "desc";
+            };
+        };
+    };
+}>;
+
+const generateShippingVoucherId = (): string => {
     const prefix = "ENV";
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const random = Math.random().toString(36).substring(2, 7).toUpperCase();
     return `${prefix}-${date}-${random}`;
-}
+};
 
-// GET - Obtener todas las asignaciones o una específica
+const toSafeJson = <T>(value: T): T => {
+    return JSON.parse(
+        JSON.stringify(value, (_key, nestedValue) => {
+            if (typeof nestedValue === "bigint") {
+                return nestedValue.toString();
+            }
+
+            return nestedValue;
+        }),
+    ) as T;
+};
+
+const parseAssignmentContext = (raw: string | null): Record<string, unknown> => {
+    if (!raw) {
+        return {};
+    }
+
+    try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return parsed as Record<string, unknown>;
+        }
+    } catch {
+        return {};
+    }
+
+    return {};
+};
+
+const toOptionalString = (value: unknown): string | null => {
+    return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+};
+
+const getShipmentByLeg = (assignment: AssignmentWithRelations, leg: ShipmentLeg) => {
+    return assignment.shipments.find((shipment) => shipment.leg === leg) || null;
+};
+
+const mapAssignmentResponse = (assignment: AssignmentWithRelations) => {
+    const outbound = getShipmentByLeg(assignment, SHIPMENT_LEG.OUTBOUND);
+    const returnShipment = getShipmentByLeg(assignment, SHIPMENT_LEG.RETURN);
+    const context = parseAssignmentContext(assignment.closure_reason);
+
+    const returnStatusFromContext = toOptionalString(context.return_status);
+    const returnStatus = returnStatusFromContext || returnShipment?.status || null;
+
+    return {
+        id: assignment.id.toString(),
+        at: assignment.assigned_at.toISOString(),
+        assigned_to: assignment.assignee_name,
+        device_id: assignment.device_id,
+        ticket_id: assignment.ticket_id,
+        type: assignment.type,
+        assignee_name: assignment.assignee_name,
+        assignee_phone: assignment.assignee_phone,
+        assignee_email: assignment.assignee_email,
+        contact_details: toOptionalString(context.contact_details) || toOptionalString(context.notes),
+        delivery_location: toOptionalString(context.delivery_location) || toOptionalString(context.city),
+        distributor_id: assignment.distributor_id,
+        expects_return: assignment.expects_return,
+        return_device_imei: assignment.expected_return_imei,
+        return_status: returnStatus,
+        return_received_at: returnShipment?.delivered_at?.toISOString() || null,
+        return_notes: returnShipment?.notes || null,
+        shipping_voucher_id: outbound?.voucher_id || null,
+        status: assignment.status,
+        closed_at: assignment.closed_at?.toISOString() || null,
+        closure_reason: assignment.closure_reason,
+        shipping_status: outbound?.status || null,
+        shipped_at: outbound?.shipped_at?.toISOString() || null,
+        delivered_at: outbound?.delivered_at?.toISOString() || null,
+        shipping_notes: outbound?.notes || null,
+        device: assignment.device,
+        distributor: assignment.distributor,
+    };
+};
+
+const resolveCanonicalAssignmentId = async (rawId: string): Promise<bigint | null> => {
+    try {
+        return BigInt(rawId);
+    } catch {
+        const rows = await prisma.$queryRaw<Array<{ id: bigint }>>`
+            SELECT id
+            FROM phones.assignment
+            WHERE legacy_assignment_id = ${rawId}
+            LIMIT 1
+        `;
+
+        return rows[0]?.id ?? null;
+    }
+};
+
+const resolveCanonicalDeviceId = async (rawDeviceId: string): Promise<string | null> => {
+    const canonicalDevice = await prisma.device.findUnique({
+        where: { id: rawDeviceId },
+        select: { id: true },
+    });
+
+    if (canonicalDevice) {
+        return canonicalDevice.id;
+    }
+
+    const canonicalByImei = await prisma.device.findUnique({
+        where: { imei: rawDeviceId },
+        select: { id: true },
+    });
+
+    return canonicalByImei?.id ?? null;
+};
+
 export const GET = withAuth(async (request: NextRequest, session) => {
     try {
         const searchParams = request.nextUrl.searchParams;
@@ -37,31 +170,60 @@ export const GET = withAuth(async (request: NextRequest, session) => {
         const sotiDeviceId = searchParams.get("soti_device_id");
         const status = searchParams.get("status");
         const summaryOnly = searchParams.get("summary") === "true";
+        const sourceMode =
+            summaryOnly ? resolveSourceMode("home_shipping", { fallback: resolveSourceMode("assignments") }) : resolveSourceMode("assignments");
 
         if (summaryOnly) {
-            const shippingInProgress = await prisma.assignment.count({
+            const shippingInProgress = await prisma.shipment.count({
                 where: {
-                    status: "active",
-                    shipping_voucher_id: { not: null },
-                    shipping_status: { in: ["pending", "shipped"] },
+                    leg: SHIPMENT_LEG.OUTBOUND,
+                    voucher_id: { not: null },
+                    status: { in: ["pending", "shipped"] },
                 },
             });
 
-            return NextResponse.json({
+            const parity = evaluateParity({
+                surface: "home_shipping",
+                thresholdProfile: "home",
+                baseline: toHomeShippingParitySnapshot(shippingInProgress),
+                candidate: toHomeShippingParitySnapshot(shippingInProgress),
+            });
+
+            await captureParityEvidence(parity.evidence, {
+                operator: session.user.id,
+                notes: `mode=${sourceMode}; canonical-only`,
+            });
+
+            const response = NextResponse.json({
                 success: true,
                 shippingInProgress,
                 lastUpdated: new Date().toISOString(),
             });
+
+            response.headers.set("x-migration-source-mode", sourceMode);
+            response.headers.set("x-migration-parity-pass", String(parity.evidence.passed));
+
+            return response;
         }
 
         if (id) {
-            // Obtener una asignación específica
+            const assignmentId = await resolveCanonicalAssignmentId(id);
+            if (!assignmentId) {
+                return NextResponse.json({ error: "Asignación no encontrada" }, { status: 404 });
+            }
+
             const assignment = await prisma.assignment.findUnique({
-                where: { id },
+                where: { id: assignmentId },
                 include: {
-                    device: true,
-                    soti_device: true,
+                    device: {
+                        include: {
+                            model: true,
+                        },
+                    },
                     distributor: true,
+                    shipments: {
+                        orderBy: { created_at: "desc" },
+                    },
                 },
             });
 
@@ -69,16 +231,46 @@ export const GET = withAuth(async (request: NextRequest, session) => {
                 return NextResponse.json({ error: "Asignación no encontrada" }, { status: 404 });
             }
 
-            return NextResponse.json(assignment);
+            const response = NextResponse.json(toSafeJson(mapAssignmentResponse(assignment)));
+            response.headers.set("x-migration-source-mode", sourceMode);
+
+            return response;
         }
 
-        // Construir filtros
-        const where: any = {};
-        if (deviceId) where.device_id = deviceId;
-        if (sotiDeviceId) where.soti_device_id = sotiDeviceId;
-        if (status) where.status = status;
+        const whereAnd: Prisma.assignmentWhereInput[] = [];
 
-        // Obtener todas las asignaciones con filtros opcionales
+        if (deviceId) {
+            const canonicalDeviceId = await resolveCanonicalDeviceId(deviceId);
+            if (canonicalDeviceId) {
+                whereAnd.push({ device_id: canonicalDeviceId });
+            } else {
+                whereAnd.push({ device_id: "__no_device_match__" });
+            }
+        }
+
+        if (sotiDeviceId) {
+            const sotiDevice = await prisma.soti_device.findUnique({
+                where: { id: sotiDeviceId },
+                select: { imei: true },
+            });
+
+            if (sotiDevice?.imei) {
+                whereAnd.push({
+                    device: {
+                        imei: sotiDevice.imei,
+                    },
+                });
+            } else {
+                whereAnd.push({ device_id: "__no_soti_match__" });
+            }
+        }
+
+        if (status) {
+            whereAnd.push({ status });
+        }
+
+        const where: Prisma.assignmentWhereInput = whereAnd.length > 0 ? { AND: whereAnd } : {};
+
         const assignments = await prisma.assignment.findMany({
             where,
             include: {
@@ -87,30 +279,36 @@ export const GET = withAuth(async (request: NextRequest, session) => {
                         model: true,
                     },
                 },
-                soti_device: true,
                 distributor: true,
+                shipments: {
+                    orderBy: { created_at: "desc" },
+                },
             },
-            orderBy: { at: "desc" },
+            orderBy: { assigned_at: "desc" },
         });
 
-        return NextResponse.json({
+        const payload = assignments.map(mapAssignmentResponse);
+
+        const response = NextResponse.json({
             success: true,
-            assignments: assignments,
-            totalRecords: assignments.length,
+            assignments: toSafeJson(payload),
+            totalRecords: payload.length,
         });
+
+        response.headers.set("x-migration-source-mode", sourceMode);
+
+        return response;
     } catch (error) {
         console.error("Error fetching assignments:", error);
         return NextResponse.json({ error: "Error al obtener las asignaciones" }, { status: 500 });
     }
 });
 
-// POST - Crear una nueva asignación
-export const POST = withAdminOnly(async (request: NextRequest, session) => {
+export const POST = withAdminOnly(async (request: NextRequest) => {
     try {
         const body = await request.json();
-
-        // Validar datos de entrada
         const validationResult = CreateAssignmentSchema.safeParse(body);
+
         if (!validationResult.success) {
             return NextResponse.json(
                 {
@@ -123,14 +321,22 @@ export const POST = withAdminOnly(async (request: NextRequest, session) => {
 
         const data = validationResult.data;
 
-        // Verificar que el dispositivo existe
+        const canonicalDeviceId = await resolveCanonicalDeviceId(data.device_id);
+        if (!canonicalDeviceId) {
+            return NextResponse.json({ error: "Dispositivo no encontrado" }, { status: 404 });
+        }
+
         const device = await prisma.device.findUnique({
-            where: { id: data.device_id },
+            where: { id: canonicalDeviceId },
             include: {
                 assignments: {
                     where: {
                         status: "active",
                     },
+                    select: {
+                        id: true,
+                    },
+                    take: 1,
                 },
                 model: true,
                 backup_distributor: true,
@@ -141,25 +347,24 @@ export const POST = withAdminOnly(async (request: NextRequest, session) => {
             return NextResponse.json({ error: "Dispositivo no encontrado" }, { status: 404 });
         }
 
-        // Verificar si ya tiene una asignación activa
         if (device.assignments.length > 0) {
             return NextResponse.json({ error: "El dispositivo ya tiene una asignación activa" }, { status: 400 });
         }
 
-        // Verificar que la distribuidora existe
         const distributor = await prisma.distributor.findUnique({
             where: { id: data.distributor_id },
+            select: { id: true },
         });
 
         if (!distributor) {
             return NextResponse.json({ error: "Distribuidora no encontrada" }, { status: 404 });
         }
 
-        // Si se proporciona soti_device_id, verificar que existe
-        let sotiDevice = null;
+        let sotiDevice: { id: string } | null = null;
         if (data.soti_device_id) {
             sotiDevice = await prisma.soti_device.findUnique({
                 where: { id: data.soti_device_id },
+                select: { id: true },
             });
 
             if (!sotiDevice) {
@@ -167,83 +372,104 @@ export const POST = withAdminOnly(async (request: NextRequest, session) => {
             }
         }
 
-        // Iniciar transacción para crear la asignación y actualizar el dispositivo
-        const result = await prisma.$transaction(async (tx) => {
-            // Detectar si el dispositivo es backup y está en la misma distribuidora
-            const isBackupInSameLocation = device.is_backup && device.backup_distributor_id === data.distributor_id;
+        const isBackupInSameLocation = device.is_backup && device.backup_distributor_id === data.distributor_id;
+        const shouldSkipShipping = isBackupInSameLocation;
+        const shippingVoucherId = !shouldSkipShipping && data.generate_voucher ? generateShippingVoucherId() : null;
+        const initialShippingStatus = shouldSkipShipping ? "delivered" : data.generate_voucher ? "pending" : null;
 
-            // Si es backup en la misma ubicación, saltar proceso de envío
-            const shouldSkipShipping = isBackupInSameLocation;
+        const assignmentContext = {
+            delivery_location: data.delivery_location,
+            contact_details: data.contact_details?.trim() || null,
+            soti_device_id: data.soti_device_id || null,
+        };
 
-            // Generar ID de vale de envío solo si NO es backup en la misma ubicación y se solicita
-            const shippingVoucherId = !shouldSkipShipping && data.generate_voucher ? generateShippingVoucherId() : null;
-
-            // Determinar shipping_status inicial
-            // Si es backup en la misma ubicación, marcar como entregado directamente
-            const initialShippingStatus = shouldSkipShipping ? "delivered" : data.generate_voucher ? "pending" : null;
-
-            // Crear la asignación
-            const assignment = await tx.assignment.create({
+        const assignment = await prisma.$transaction(async (tx) => {
+            const createdAssignment = await tx.assignment.create({
                 data: {
                     device_id: device.id,
-                    soti_device_id: data.soti_device_id || null,
-                    assignee_name: data.assignee_name,
-                    assignee_phone: data.assignee_phone,
-                    assignee_email: data.assignee_email || null,
-                    distributor_id: data.distributor_id,
-                    delivery_location: data.delivery_location,
-                    contact_details: data.contact_details || null,
-                    shipping_voucher_id: shippingVoucherId,
-                    shipping_status: initialShippingStatus,
-                    delivered_at: shouldSkipShipping ? new Date() : null,
-                    expects_return: data.expects_return,
-                    return_device_imei: data.return_device_imei || null,
-                    return_status: null,
                     type: data.assignment_type === "replacement" ? "REPLACE" : "ASSIGN",
                     status: "active",
+                    assignee_name: data.assignee_name.trim(),
+                    assignee_phone: data.assignee_phone.trim(),
+                    assignee_email: data.assignee_email?.trim() || null,
+                    distributor_id: data.distributor_id,
+                    expects_return: data.expects_return,
+                    expected_return_imei: data.return_device_imei?.trim() || null,
+                    closure_reason: JSON.stringify(assignmentContext),
+                    assigned_at: new Date(),
                 },
                 include: {
-                    soti_device: true,
-                    distributor: true,
                     device: {
                         include: {
                             model: true,
                         },
                     },
+                    distributor: true,
+                    shipments: true,
                 },
             });
 
-            // Actualizar el estado del dispositivo SOTI si existe
+            if (shippingVoucherId) {
+                await tx.shipment.create({
+                    data: {
+                        assignment_id: createdAssignment.id,
+                        leg: SHIPMENT_LEG.OUTBOUND,
+                        voucher_id: shippingVoucherId,
+                        status: initialShippingStatus || "pending",
+                        shipped_at: initialShippingStatus === "delivered" ? new Date() : null,
+                        delivered_at: initialShippingStatus === "delivered" ? new Date() : null,
+                    },
+                });
+            }
+
             if (data.soti_device_id) {
                 await tx.soti_device.update({
                     where: { id: data.soti_device_id },
                     data: {
                         status: "ASSIGNED",
-                        assigned_user: data.assignee_name,
+                        assigned_user: data.assignee_name.trim(),
                     },
                 });
             }
 
-            // Actualizar el estado del dispositivo en la tabla device
-            // Limpiar campos de backup al asignar
             await tx.device.update({
                 where: { id: device.id },
                 data: {
                     status: device_status.ASSIGNED,
-                    assigned_to: data.assignee_name,
+                    assigned_to: data.assignee_name.trim(),
                     is_backup: false,
                     backup_distributor_id: null,
+                    distributor_id: data.distributor_id,
                 },
             });
 
-            return assignment;
+            const refreshedAssignment = await tx.assignment.findUnique({
+                where: { id: createdAssignment.id },
+                include: {
+                    device: {
+                        include: {
+                            model: true,
+                        },
+                    },
+                    distributor: true,
+                    shipments: {
+                        orderBy: { created_at: "desc" },
+                    },
+                },
+            });
+
+            if (!refreshedAssignment) {
+                throw new Error("No se pudo recuperar la asignación creada");
+            }
+
+            return refreshedAssignment;
         });
 
         return NextResponse.json(
             {
                 success: true,
                 message: "Asignación creada exitosamente",
-                data: result,
+                data: toSafeJson(mapAssignmentResponse(assignment)),
             },
             { status: 201 },
         );
@@ -259,8 +485,7 @@ export const POST = withAdminOnly(async (request: NextRequest, session) => {
     }
 });
 
-// PATCH - Actualizar una asignación
-export const PATCH = withAdminOnly(async (request: NextRequest, session) => {
+export const PATCH = withAdminOnly(async (request: NextRequest) => {
     try {
         const searchParams = request.nextUrl.searchParams;
         const id = searchParams.get("id");
@@ -269,32 +494,61 @@ export const PATCH = withAdminOnly(async (request: NextRequest, session) => {
             return NextResponse.json({ error: "ID de asignación requerido" }, { status: 400 });
         }
 
+        const assignmentId = await resolveCanonicalAssignmentId(id);
+        if (!assignmentId) {
+            return NextResponse.json({ error: "Asignación no encontrada" }, { status: 404 });
+        }
+
         const body = await request.json();
 
-        // Verificar que la asignación existe
         const existingAssignment = await prisma.assignment.findUnique({
-            where: { id },
+            where: { id: assignmentId },
         });
 
         if (!existingAssignment) {
             return NextResponse.json({ error: "Asignación no encontrada" }, { status: 404 });
         }
 
-        // Actualizar la asignación
+        const updateData: Prisma.assignmentUncheckedUpdateInput = {};
+
+        if (typeof body.assignee_name === "string") updateData.assignee_name = body.assignee_name;
+        if (typeof body.assignee_phone === "string" || body.assignee_phone === null) updateData.assignee_phone = body.assignee_phone;
+        if (typeof body.assignee_email === "string" || body.assignee_email === null) updateData.assignee_email = body.assignee_email;
+        if (typeof body.distributor_id === "string" || body.distributor_id === null) updateData.distributor_id = body.distributor_id;
+        if (typeof body.ticket_id === "string" || body.ticket_id === null) updateData.ticket_id = body.ticket_id;
+        if (typeof body.status === "string") updateData.status = body.status;
+        if (typeof body.expects_return === "boolean") updateData.expects_return = body.expects_return;
+        if (typeof body.return_device_imei === "string" || body.return_device_imei === null) {
+            updateData.expected_return_imei = body.return_device_imei;
+        }
+
+        if (body.assignment_type === "replacement") {
+            updateData.type = "REPLACE";
+        }
+        if (body.assignment_type === "new") {
+            updateData.type = "ASSIGN";
+        }
+
         const updatedAssignment = await prisma.assignment.update({
-            where: { id },
-            data: body,
+            where: { id: assignmentId },
+            data: updateData,
             include: {
-                device: true,
-                soti_device: true,
+                device: {
+                    include: {
+                        model: true,
+                    },
+                },
                 distributor: true,
+                shipments: {
+                    orderBy: { created_at: "desc" },
+                },
             },
         });
 
         return NextResponse.json({
             success: true,
             message: "Asignación actualizada exitosamente",
-            data: updatedAssignment,
+            data: toSafeJson(mapAssignmentResponse(updatedAssignment)),
         });
     } catch (error) {
         console.error("Error updating assignment:", error);
@@ -302,8 +556,7 @@ export const PATCH = withAdminOnly(async (request: NextRequest, session) => {
     }
 });
 
-// DELETE - Cancelar una asignación (soft delete)
-export const DELETE = withAdminOnly(async (request: NextRequest, session) => {
+export const DELETE = withAdminOnly(async (request: NextRequest) => {
     try {
         const searchParams = request.nextUrl.searchParams;
         const id = searchParams.get("id");
@@ -312,63 +565,51 @@ export const DELETE = withAdminOnly(async (request: NextRequest, session) => {
             return NextResponse.json({ error: "ID de asignación requerido" }, { status: 400 });
         }
 
-        // Verificar que la asignación existe
-        const exiAssignment = await prisma.assignment.findUnique({
-            where: { id },
-            include: { soti_device: true },
-        });
-
-        if (!exiAssignment) {
+        const assignmentId = await resolveCanonicalAssignmentId(id);
+        if (!assignmentId) {
             return NextResponse.json({ error: "Asignación no encontrada" }, { status: 404 });
         }
 
-        // Verificar que el dispositivo SOTI existe y está activo
-        const sotiDevice = await prisma.soti_device.findUnique({
-            where: { id: exiAssignment.soti_device_id! },
-        });
-
-        if (!sotiDevice || !sotiDevice.is_active) {
-            return NextResponse.json({ error: "Dispositivo SOTI no encontrado o inactivo" }, { status: 404 });
-        }
-
-        // Buscar el device correspondiente por IMEI
-        const device = await prisma.device.findFirst({
-            where: { imei: sotiDevice.imei },
-        });
-
-        if (!device) {
-            return NextResponse.json({ error: "No se encontró el dispositivo correspondiente en la tabla device" }, { status: 404 });
-        }
-
-        // Verificar que no tenga asignación activa
-        const exisAssignment: any = await prisma.assignment.findFirst({
-            where: {
-                OR: [{ device_id: device.id, status: "active" }],
+        const assignment = await prisma.assignment.findUnique({
+            where: { id: assignmentId },
+            include: {
+                device: true,
             },
         });
 
-        if (exisAssignment) {
-            return NextResponse.json({ error: "El dispositivo ya tiene una asignación activa" }, { status: 409 });
+        if (!assignment) {
+            return NextResponse.json({ error: "Asignación no encontrada" }, { status: 404 });
         }
 
-        // Iniciar transacción para cancelar la asignación y actualizar el dispositivo
+        const context = parseAssignmentContext(assignment.closure_reason);
+        const sotiDeviceId = toOptionalString(context.soti_device_id);
+
         await prisma.$transaction(async (tx) => {
-            // Marcar la asignación como cancelada
             await tx.assignment.update({
-                where: { id },
-                data: { status: "cancelled" },
+                where: { id: assignmentId },
+                data: {
+                    status: "cancelled",
+                    closed_at: new Date(),
+                },
             });
 
-            // Si hay un dispositivo asociado, actualizar su estado
-            if (exisAssignment.soti_device_id) {
+            if (sotiDeviceId) {
                 await tx.soti_device.update({
-                    where: { id: exisAssignment.soti_device_id },
+                    where: { id: sotiDeviceId },
                     data: {
                         status: "NEW",
                         assigned_user: null,
                     },
                 });
             }
+
+            await tx.device.update({
+                where: { id: assignment.device_id },
+                data: {
+                    status: device_status.USED,
+                    assigned_to: null,
+                },
+            });
         });
 
         return NextResponse.json({

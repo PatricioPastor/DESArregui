@@ -126,12 +126,7 @@ export const DELETE = withAdminOnly(async (_request: NextRequest, _session, { pa
             return NextResponse.json({ success: false, error: "Modelo no encontrado" }, { status: 404 });
         }
 
-        const [legacyUsage, n1Usage] = await Promise.all([
-            prisma.device.count({ where: { model_id: id } }),
-            prisma.device_n1.count({ where: { model_id: id } }),
-        ]);
-
-        const totalUsage = legacyUsage + n1Usage;
+        const totalUsage = await prisma.device.count({ where: { model_id: id } });
 
         if (totalUsage > 0) {
             return NextResponse.json(

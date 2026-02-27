@@ -7,7 +7,7 @@ import { Select } from "@/components/base/select/select";
 import { DEVICE_STATUS_OPTIONS } from "@/constants/device-status";
 import { useCreateStockStore } from "@/store/create-stock.store";
 
-export function IndividualTab({ hidePurchaseTicketField = false }: { hidePurchaseTicketField?: boolean }) {
+export function IndividualTab({ hidePurchaseTicketField: _hidePurchaseTicketField = false }: { hidePurchaseTicketField?: boolean }) {
     const [individualData, setIndividualData, modelOptions, distributorOptions, isLoadingOptions, fetchAllOptions] = useCreateStockStore(
         useShallow((s) => [s.individualData, s.setIndividualData, s.modelOptions, s.distributorOptions, s.isLoadingOptions, s.fetchAllOptions]),
     );
@@ -95,18 +95,6 @@ export function IndividualTab({ hidePurchaseTicketField = false }: { hidePurchas
                         )}
                     </Select>
                 </div>
-
-                {!hidePurchaseTicketField && (
-                    <div className="rounded-xl border border-primary bg-primary p-3 sm:col-span-2">
-                        <Input
-                            id="purchase_id"
-                            label="Ticket de compra (opcional)"
-                            placeholder="Identificador de compra"
-                            value={individualData.purchase_id}
-                            onChange={(value) => setIndividualData({ purchase_id: value })}
-                        />
-                    </div>
-                )}
             </section>
         </div>
     );

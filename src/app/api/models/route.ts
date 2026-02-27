@@ -29,7 +29,7 @@ export const GET = withAuth(async (_request: NextRequest) => {
                 },
                 orderBy: [{ brand: "asc" }, { model: "asc" }, { storage_gb: "asc" }, { color: "asc" }],
             }),
-            prisma.device_n1.groupBy({
+            prisma.device.groupBy({
                 by: ["model_id"],
                 where: {
                     is_deleted: false,

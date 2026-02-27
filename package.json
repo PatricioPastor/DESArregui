@@ -8,6 +8,8 @@
         "start": "next start",
         "prisma:generate": "prisma generate",
         "prisma:seed": "bun prisma/seed.ts",
+        "migration:reference-scan": "bun scripts/migration/reference-scan.ts",
+        "migration:compat-audit": "bun scripts/migration/compatibility-retirement-audit.ts",
         "postinstall": "prisma generate"
     },
     "dependencies": {
@@ -55,6 +57,7 @@
         "@types/node": "^22.16.0",
         "@types/react": "19.2.7",
         "@types/react-dom": "19.2.3",
+        "bun-types": "^1.3.9",
         "eslint": "9",
         "eslint-config-next": "16.1.1",
         "postcss": "^8.5.6",

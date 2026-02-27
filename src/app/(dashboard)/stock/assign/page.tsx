@@ -31,7 +31,7 @@ export default async function AssignLandingPage({ searchParams }: { searchParams
         notFound();
     }
 
-    const device = await prisma.device_n1.findUnique({
+    const device = await prisma.device.findUnique({
         where: { imei },
         include: {
             model: {
@@ -42,7 +42,7 @@ export default async function AssignLandingPage({ searchParams }: { searchParams
                     color: true,
                 },
             },
-            assignments_n1: {
+            assignments: {
                 where: { status: "active" },
                 select: { id: true },
                 take: 1,
@@ -62,7 +62,7 @@ export default async function AssignLandingPage({ searchParams }: { searchParams
         select: { id: true },
     });
 
-    const canManuallyAssign = !device.is_deleted && device.status !== device_status.ASSIGNED && device.assignments_n1.length === 0 && !activeSotiDevice;
+    const canManuallyAssign = !device.is_deleted && device.status !== device_status.ASSIGNED && device.assignments.length === 0 && !activeSotiDevice;
 
     if (!canManuallyAssign) {
         notFound();

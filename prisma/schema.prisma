@@ -24,8 +24,8 @@ model User {
   accounts      Account[]
   sessions      Session[]
   roles         UserAuthRole[]
-  ownedDevicesN1   device_n1[] @relation("DeviceN1Owner")
-  createdDevicesN1 device_n1[] @relation("DeviceN1Creator")
+  ownedDevices   device[] @relation("DeviceOwner")
+  createdDevices device[] @relation("DeviceCreator")
 
   @@map("user")
   @@schema("main_auth")
@@ -113,7 +113,6 @@ model phone_model {
   sku        String?
   storage_gb Int?
   devices    device[]
-  devices_n1 device_n1[]
 
   @@unique([brand, model, storage_gb, color])
   @@map("phone_model")
@@ -121,69 +120,18 @@ model phone_model {
 }
 
 model distributor {
-  id                String          @id @default(cuid())
-  name              String          @unique
-  assignments       assignment[]
-  assignments_n1    assignment_n1[]
-  devices           device[]
-  devices_n1        device_n1[]
-  backup_devices    device[]        @relation("DeviceBackupDistributor")
-  backup_devices_n1 device_n1[]     @relation("DeviceN1BackupDistributor")
-  purchases         purchase[]
-  sims              sim[]
+  id             String       @id @default(cuid())
+  name           String       @unique
+  assignments    assignment[]
+  devices        device[]
+  backup_devices device[]     @relation("DeviceBackupDistributor")
+  sims           sim[]
 
   @@map("distributor")
   @@schema("phones")
 }
 
-model purchase {
-  id             String      @id @default(cuid())
-  currency       String      @default("ARS")
-  distributor_id String
-  invoice_number String?
-  purchased_at   DateTime    @default(now())
-  devices        device[]
-  devices_n1     device_n1[]
-  distributor    distributor @relation(fields: [distributor_id], references: [id], onDelete: Cascade)
-
-  @@index([distributor_id])
-  @@map("purchase")
-  @@schema("phones")
-}
-
 model device {
-  id                    String        @id @default(cuid())
-  imei                  String        @unique
-  assigned_to           String?
-  created_at            DateTime      @default(now())
-  distributor_id        String?
-  model_id              String
-  purchase_id           String?
-  ticket_id             String?
-  updated_at            DateTime      @updatedAt
-  status                device_status @default(NEW)
-  deleted_at            DateTime?
-  deletion_reason       String?
-  is_deleted            Boolean       @default(false)
-  is_backup             Boolean       @default(false)
-  backup_distributor_id String?
-  assignments           assignment[]
-  distributor           distributor?  @relation(fields: [distributor_id], references: [id])
-  backup_distributor    distributor?  @relation("DeviceBackupDistributor", fields: [backup_distributor_id], references: [id])
-  model                 phone_model   @relation(fields: [model_id], references: [id], onDelete: SetDefault)
-  purchase              purchase?     @relation(fields: [purchase_id], references: [id])
-
-  @@index([model_id])
-  @@index([status])
-  @@index([assigned_to])
-  @@index([ticket_id])
-  @@index([is_deleted])
-  @@index([backup_distributor_id])
-  @@map("device")
-  @@schema("phones")
-}
-
-model device_n1 {
   id                    String          @id @default(cuid())
   imei                  String          @unique
   assigned_to           String?
@@ -192,7 +140,6 @@ model device_n1 {
   created_at            DateTime        @default(now())
   distributor_id        String?
   model_id              String
-  purchase_id           String?
   ticket_id             String?
   updated_at            DateTime        @updatedAt
   status                device_status   @default(NEW)
@@ -201,13 +148,12 @@ model device_n1 {
   is_deleted            Boolean         @default(false)
   is_backup             Boolean         @default(false)
   backup_distributor_id String?
-  assignments_n1        assignment_n1[]
+  assignments           assignment[]
   distributor           distributor?    @relation(fields: [distributor_id], references: [id])
-  backup_distributor    distributor?    @relation("DeviceN1BackupDistributor", fields: [backup_distributor_id], references: [id])
+  backup_distributor    distributor?    @relation("DeviceBackupDistributor", fields: [backup_distributor_id], references: [id])
   model                 phone_model     @relation(fields: [model_id], references: [id], onDelete: SetDefault)
-  purchase              purchase?       @relation(fields: [purchase_id], references: [id])
-  owner_user            User?           @relation("DeviceN1Owner", fields: [owner_user_id], references: [id])
-  created_by_user       User?           @relation("DeviceN1Creator", fields: [created_by_user_id], references: [id])
+  owner_user            User?           @relation("DeviceOwner", fields: [owner_user_id], references: [id])
+  created_by_user       User?           @relation("DeviceCreator", fields: [created_by_user_id], references: [id])
 
   @@index([model_id])
   @@index([status])
@@ -217,11 +163,11 @@ model device_n1 {
   @@index([ticket_id])
   @@index([is_deleted])
   @@index([backup_distributor_id])
-  @@map("device_n1")
+  @@map("device")
   @@schema("phones")
 }
 
-model assignment_n1 {
+model assignment {
   id                   BigInt        @id @default(autoincrement())
   device_id            String
   type                 String        @default("ASSIGN")
@@ -239,9 +185,9 @@ model assignment_n1 {
   legacy_assignment_id String?       @unique
   created_at           DateTime      @default(now())
   updated_at           DateTime      @updatedAt
-  device               device_n1     @relation(fields: [device_id], references: [id], onDelete: Cascade)
+  device               device        @relation(fields: [device_id], references: [id], onDelete: Cascade)
   distributor          distributor?  @relation(fields: [distributor_id], references: [id])
-  shipments_n1         shipment_n1[]
+  shipments            shipment[]
 
   @@index([status])
   @@index([ticket_id])
@@ -249,11 +195,11 @@ model assignment_n1 {
   @@index([assigned_at])
   @@index([device_id])
   @@index([distributor_id])
-  @@map("assignments_n1")
+  @@map("assignment")
   @@schema("phones")
 }
 
-model shipment_n1 {
+model shipment {
   id                   BigInt        @id @default(autoincrement())
   assignment_id        BigInt
   leg                  String
@@ -265,52 +211,12 @@ model shipment_n1 {
   legacy_assignment_id String?
   created_at           DateTime      @default(now())
   updated_at           DateTime      @updatedAt
-  assignment           assignment_n1 @relation(fields: [assignment_id], references: [id], onDelete: Cascade)
+  assignment           assignment @relation(fields: [assignment_id], references: [id], onDelete: Cascade)
 
   @@unique([assignment_id, leg], map: "shipments_n1_assignment_leg_unq")
   @@index([status], map: "shipments_n1_status_idx")
   @@index([assignment_id], map: "shipments_n1_assignment_id_idx")
-  @@map("shipments_n1")
-  @@schema("phones")
-}
-
-model assignment {
-  id                  String          @id @default(cuid())
-  at                  DateTime        @default(now())
-  assigned_to         String?
-  device_id           String?
-  ticket_id           String?
-  type                assignment_type
-  assignee_name       String?
-  assignee_phone      String?
-  assignee_email      String?
-  contact_details     String?
-  delivery_location   String?
-  distributor_id      String?
-  expects_return      Boolean         @default(false)
-  return_device_imei  String?
-  return_status       String?
-  return_received_at  DateTime?
-  return_notes        String?
-  shipping_voucher_id String?         @unique
-  soti_device_id      String?
-  status              String          @default("active")
-  closed_at           DateTime?
-  closure_reason      String?
-  shipping_status     String?         @default("pending")
-  shipped_at          DateTime?
-  delivered_at        DateTime?
-  shipping_notes      String?
-  device              device?         @relation(fields: [device_id], references: [id], onDelete: Cascade)
-  distributor         distributor?    @relation(fields: [distributor_id], references: [id])
-  soti_device         soti_device?    @relation(fields: [soti_device_id], references: [id])
-
-  @@index([device_id, at])
-  @@index([soti_device_id])
-  @@index([distributor_id])
-  @@index([status])
-  @@index([return_status])
-  @@map("assignment")
+  @@map("shipment")
   @@schema("phones")
 }
 
@@ -338,8 +244,6 @@ model soti_device {
   last_sync           DateTime     @default(now())
   is_active           Boolean      @default(true)
   status              String       @default("NEW")
-  assignments         assignment[]
-
   @@unique([imei, device_name])
   @@index([imei])
   @@index([device_name])
@@ -415,6 +319,47 @@ model ticket {
   @@index([is_active])
   @@index([replacement_type])
   @@map("ticket")
+  @@schema("phones")
+}
+
+model migration_phase_gate_control {
+  id               BigInt   @id @default(autoincrement())
+  surface          String   @unique
+  source_mode      String   @default("legacy")
+  threshold_profile String
+  gate_owner       String
+  rollout_phase    String   @default("phase0")
+  is_gate_open     Boolean  @default(false)
+  notes            String?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  @@index([rollout_phase])
+  @@index([is_gate_open])
+  @@map("migration_phase_gate_control")
+  @@schema("phones")
+}
+
+model migration_parity_evidence {
+  id                BigInt   @id @default(autoincrement())
+  surface           String
+  period_start      DateTime? @db.Date
+  period_end        DateTime? @db.Date
+  baseline          Json
+  candidate         Json
+  delta             Json
+  delta_pct         Json
+  threshold_profile String
+  passed            Boolean
+  operator          String?
+  notes             String?
+  created_at        DateTime @default(now())
+
+  @@index([surface])
+  @@index([threshold_profile])
+  @@index([passed])
+  @@index([created_at])
+  @@map("migration_parity_evidence")
   @@schema("phones")
 }
 

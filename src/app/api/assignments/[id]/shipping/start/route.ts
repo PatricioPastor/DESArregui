@@ -1,93 +1,94 @@
-import prisma from "@/lib/prisma";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withAdminOnly } from "@/lib/api-auth";
+import prisma from "@/lib/prisma";
 
 type RouteParams = {
-  id: string;
+    id: string;
 };
 
-// POST - Iniciar envío (cambiar a shipped)
-export const POST = withAdminOnly(async (request: Request, session, context: { params: Promise<RouteParams> }) => {
-  const { id: assignmentId } = await context.params;
+const SHIPMENT_LEG = {
+    OUTBOUND: "OUTBOUND",
+} as const;
 
-  if (!assignmentId) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "ID de asignación requerido",
-      },
-      { status: 400 }
-    );
-  }
+const resolveCanonicalAssignmentId = async (rawId: string): Promise<bigint | null> => {
+    try {
+        return BigInt(rawId);
+    } catch {
+        const rows = await prisma.$queryRaw<Array<{ id: bigint }>>`
+            SELECT id
+            FROM phones.assignment
+            WHERE legacy_assignment_id = ${rawId}
+            LIMIT 1
+        `;
 
-  try {
-    // Verificar que la asignación existe
-    const assignment = await prisma.assignment.findUnique({
-      where: { id: assignmentId },
-    });
+        return rows[0]?.id ?? null;
+    }
+};
 
-    if (!assignment) {
-      return NextResponse.json(
-        { error: `No se encontró la asignación con ID ${assignmentId}` },
-        { status: 404 }
-      );
+export const POST = withAdminOnly(async (_request: Request, _session, context: { params: Promise<RouteParams> }) => {
+    const { id: rawAssignmentId } = await context.params;
+
+    if (!rawAssignmentId) {
+        return NextResponse.json(
+            {
+                success: false,
+                error: "ID de asignación requerido",
+            },
+            { status: 400 },
+        );
     }
 
-    // Verificar que la asignación está activa
-    if (assignment.status !== "active") {
-      return NextResponse.json(
-        { error: "Solo se puede iniciar el envío de asignaciones activas" },
-        { status: 400 }
-      );
+    try {
+        const assignmentId = await resolveCanonicalAssignmentId(rawAssignmentId);
+        if (!assignmentId) {
+            return NextResponse.json({ error: `No se encontró la asignación con ID ${rawAssignmentId}` }, { status: 404 });
+        }
+
+        const assignment = await prisma.assignment.findUnique({
+            where: { id: assignmentId },
+            include: {
+                shipments: true,
+            },
+        });
+
+        if (!assignment) {
+            return NextResponse.json({ error: `No se encontró la asignación con ID ${rawAssignmentId}` }, { status: 404 });
+        }
+
+        if (assignment.status !== "active") {
+            return NextResponse.json({ error: "Solo se puede iniciar el envío de asignaciones activas" }, { status: 400 });
+        }
+
+        const outboundShipment = assignment.shipments.find((shipment) => shipment.leg === SHIPMENT_LEG.OUTBOUND) || null;
+
+        if (!outboundShipment || !outboundShipment.voucher_id) {
+            return NextResponse.json({ error: "Esta asignación no tiene vale de envío" }, { status: 400 });
+        }
+
+        if (outboundShipment.status !== "pending") {
+            return NextResponse.json({ error: `El envío ya está en estado "${outboundShipment.status}"` }, { status: 400 });
+        }
+
+        await prisma.shipment.update({
+            where: { id: outboundShipment.id },
+            data: {
+                status: "shipped",
+                shipped_at: outboundShipment.shipped_at || new Date(),
+            },
+        });
+
+        return NextResponse.json({
+            success: true,
+            message: "Envío iniciado exitosamente",
+        });
+    } catch (error) {
+        console.error(`POST /api/assignments/${rawAssignmentId}/shipping/start error:`, error);
+
+        return NextResponse.json(
+            {
+                error: error instanceof Error ? error.message : "Error interno del servidor",
+            },
+            { status: 500 },
+        );
     }
-
-    // Verificar que tiene vale de envío
-    if (!assignment.shipping_voucher_id) {
-      return NextResponse.json(
-        { error: "Esta asignación no tiene vale de envío" },
-        { status: 400 }
-      );
-    }
-
-    // Verificar que está en estado pendiente
-    if (assignment.shipping_status && assignment.shipping_status !== "pending") {
-      return NextResponse.json(
-        { error: `El envío ya está en estado "${assignment.shipping_status}"` },
-        { status: 400 }
-      );
-    }
-
-    // Actualizar el estado de envío
-    await prisma.assignment.update({
-      where: { id: assignmentId },
-      data: {
-        shipping_status: "shipped",
-        shipped_at: new Date(),
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: "Envío iniciado exitosamente",
-    });
-  } catch (error: any) {
-    console.error(`POST /api/assignments/${assignmentId}/shipping/start error:`, error);
-
-    if (error?.code === "P2025") {
-      return NextResponse.json(
-        {
-          error: `No se encontró la asignación con ID ${assignmentId}`,
-        },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Error interno del servidor",
-      },
-      { status: 500 }
-    );
-  }
 });
-

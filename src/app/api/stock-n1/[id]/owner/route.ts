@@ -35,7 +35,7 @@ export const PATCH = withRoles(["stock-viewer"], async (request: NextRequest, _s
 
     try {
         const [device, ownerUser] = await Promise.all([
-            prisma.device_n1.findUnique({
+            prisma.device.findUnique({
                 where: { id },
                 select: { id: true, imei: true, is_deleted: true },
             }),
@@ -77,7 +77,7 @@ export const PATCH = withRoles(["stock-viewer"], async (request: NextRequest, _s
             );
         }
 
-        const updatedDevice = await prisma.device_n1.update({
+        const updatedDevice = await prisma.device.update({
             where: { id },
             data: {
                 owner_user_id,

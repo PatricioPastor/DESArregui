@@ -63,7 +63,7 @@ export const POST = withAdminOnly(async (request: Request, _session, context: { 
     const normalizedReason = reason?.trim() || null;
 
     try {
-        const assignment = await prisma.assignment_n1.findUnique({
+        const assignment = await prisma.assignment.findUnique({
             where: { id: assignmentId },
             include: {
                 device: {
@@ -89,7 +89,7 @@ export const POST = withAdminOnly(async (request: Request, _session, context: { 
         };
 
         await prisma.$transaction(async (tx) => {
-            await tx.assignment_n1.update({
+            await tx.assignment.update({
                 where: { id: assignmentId },
                 data: {
                     status: "completed",
@@ -98,7 +98,7 @@ export const POST = withAdminOnly(async (request: Request, _session, context: { 
                 },
             });
 
-            await tx.device_n1.update({
+            await tx.device.update({
                 where: { id: assignment.device_id },
                 data: {
                     status: resulting_device_status as device_status,

@@ -51,7 +51,7 @@ export default async function DeviceDetailPage({ params }: { params: Promise<Dev
         notFound();
     }
 
-    const device = await prisma.device_n1.findUnique({
+    const device = await prisma.device.findUnique({
         where: { imei },
         include: {
             model: {
@@ -67,7 +67,7 @@ export default async function DeviceDetailPage({ params }: { params: Promise<Dev
                     name: true,
                 },
             },
-            assignments_n1: {
+            assignments: {
                 orderBy: {
                     assigned_at: "desc",
                 },
@@ -77,7 +77,7 @@ export default async function DeviceDetailPage({ params }: { params: Promise<Dev
                             name: true,
                         },
                     },
-                    shipments_n1: {
+                    shipments: {
                         orderBy: {
                             created_at: "desc",
                         },
@@ -94,8 +94,8 @@ export default async function DeviceDetailPage({ params }: { params: Promise<Dev
     const statusLabel = getStatusLabel(device.status);
     const modelDisplay = formatModelDisplay(device.model);
 
-    const history: AssignmentOperationalItem[] = device.assignments_n1.map((assignment) => {
-        const outbound = assignment.shipments_n1.find((shipment) => (shipment.leg || "").toUpperCase() === "OUTBOUND") || null;
+    const history: AssignmentOperationalItem[] = device.assignments.map((assignment) => {
+        const outbound = assignment.shipments.find((shipment) => (shipment.leg || "").toUpperCase() === "OUTBOUND") || null;
         const context = parseAssignmentContext(assignment.closure_reason);
 
         return {

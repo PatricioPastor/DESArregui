@@ -68,6 +68,22 @@ export interface InventoryModelOption {
     label: string;
 }
 
+export interface InventoryPagination {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+}
+
+export interface InventoryScopeSummary {
+    totalDevices: number;
+    assignedDevices: number;
+    activeAssignments: number;
+    availableDevices: number;
+    usedDevices: number;
+    newDevices?: number;
+}
+
 export interface SOTIDeviceInfo {
     device_name?: string;
     assigned_user?: string;
@@ -126,6 +142,8 @@ export interface InventoryResponse {
     lastUpdated?: string;
     statusSummary?: InventoryStatusSummary[];
     modelOptions?: InventoryModelOption[];
+    summary?: InventoryScopeSummary;
+    pagination?: InventoryPagination;
     error?: string;
 }
 
@@ -308,7 +326,14 @@ export interface CallReportsFilters {
 
 // ==================== SIMS MODULE ====================
 
-export type SimProvider = "CLARO" | "MOVISTAR";
+export const SUPPORTED_SIM_PROVIDER = {
+    CLARO: "CLARO",
+    MOVISTAR: "MOVISTAR",
+} as const;
+
+export type SupportedSimProvider = (typeof SUPPORTED_SIM_PROVIDER)[keyof typeof SUPPORTED_SIM_PROVIDER];
+
+export type SimProvider = SupportedSimProvider;
 
 export interface SimRecord {
     icc: string;
@@ -328,6 +353,42 @@ export interface SimRecordInput {
     IP?: string;
     Estado: string;
     Empresa: string;
+}
+
+export interface CanonicalSimImportRow {
+    provider: SupportedSimProvider;
+    icc: string;
+    ip: string | null;
+    status: string;
+    distributorName: string;
+    sourceRowIndex: number;
+    sourceRecord: Record<string, unknown>;
+}
+
+export interface SimImportRowError {
+    provider: SupportedSimProvider;
+    rowIndex: number;
+    reason: string;
+    sourceRecord: Record<string, unknown>;
+}
+
+export interface SimImportSummary {
+    provider: SupportedSimProvider;
+    totalRows: number;
+    validRows: number;
+    invalidRows: number;
+}
+
+export interface SimImportAdapterOutput {
+    rows: CanonicalSimImportRow[];
+    errors: SimImportRowError[];
+    summary: SimImportSummary;
+}
+
+export interface SimImportAdapter {
+    provider: SupportedSimProvider;
+    adapterName: string;
+    extractRows: (rows: ReadonlyArray<Record<string, unknown>>) => SimImportAdapterOutput;
 }
 
 export interface SimResponse {
@@ -351,7 +412,8 @@ export interface SimSyncResponse {
     created: number;
     updated: number;
     deactivated: number;
-    createdDistributors: number;
+    createdDistributors?: number;
+    distributorsCreated?: number;
     errors: number;
     error?: string;
     details?: {

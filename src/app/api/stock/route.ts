@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { device_status } from "@/generated/prisma/index";
+import type { Prisma, device_status } from "@/generated/prisma/index";
 import { withAdminOnly, withAuth } from "@/lib/api-auth";
+import { evaluateParity } from "@/lib/migration-parity";
+import { captureParityEvidence } from "@/lib/migration-parity-store";
+import { resolveSourceMode } from "@/lib/migration-source-mode";
+import { toHomeStockParitySnapshot } from "@/lib/migration-surface-parity";
 import prisma from "@/lib/prisma";
 import type { InventoryRecord, InventoryResponse, InventoryStatus, InventoryStatusSummary, SOTIDeviceInfo } from "@/lib/types";
 
@@ -47,20 +51,29 @@ const LEGACY_STATUS_MAP: Record<string, device_status> = {
     PERDIDO: "LOST",
 } as const;
 
+const SHIPMENT_SUMMARY_SELECT = {
+    id: true,
+    leg: true,
+    voucher_id: true,
+    status: true,
+    shipped_at: true,
+    delivered_at: true,
+} as const;
+
 const ASSIGNMENT_SUMMARY_SELECT = {
     id: true,
     type: true,
     status: true,
     assignee_name: true,
     assignee_phone: true,
-    shipping_voucher_id: true,
-    shipping_status: true,
-    shipped_at: true,
-    delivered_at: true,
+    ticket_id: true,
     expects_return: true,
-    return_device_imei: true,
-    return_status: true,
-    at: true,
+    expected_return_imei: true,
+    assigned_at: true,
+    shipments: {
+        select: SHIPMENT_SUMMARY_SELECT,
+        orderBy: { created_at: "desc" as const },
+    },
 } as const;
 
 // Database query configuration
@@ -87,13 +100,13 @@ const DEVICE_INCLUDE = {
         },
     },
     assignments: {
-        orderBy: { at: "desc" as const },
+        orderBy: { assigned_at: "desc" as const },
         select: ASSIGNMENT_SUMMARY_SELECT,
         take: 10, // Limit to recent assignments for performance
     },
 } as const;
 
-type DeviceWithRelations = Awaited<ReturnType<typeof prisma.device.findMany<{ include: typeof DEVICE_INCLUDE }>>>[0];
+type DeviceWithRelations = Prisma.deviceGetPayload<{ include: typeof DEVICE_INCLUDE }>;
 
 // Utility functions
 const normalizeStatusValue = (value: unknown): device_status | null => {
@@ -122,9 +135,35 @@ const formatModelDisplay = (model: DeviceWithRelations["model"]): string => {
     return parts.join(" ").replace(/\s+/g, " ").trim();
 };
 
+const pickShipmentByLeg = (assignment: DeviceWithRelations["assignments"][number], leg: "OUTBOUND" | "RETURN") => {
+    return assignment.shipments.find((shipment) => shipment.leg === leg) || null;
+};
+
+const mapAssignmentSummary = (assignment: DeviceWithRelations["assignments"][number]) => {
+    const outbound = pickShipmentByLeg(assignment, "OUTBOUND");
+    const returnLeg = pickShipmentByLeg(assignment, "RETURN");
+
+    return {
+        id: assignment.id.toString(),
+        type: assignment.type,
+        status: assignment.status,
+        assignee_name: assignment.assignee_name,
+        assignee_phone: assignment.assignee_phone,
+        shipping_voucher_id: outbound?.voucher_id || null,
+        shipping_status: outbound?.status || null,
+        shipped_at: outbound?.shipped_at?.toISOString() || null,
+        delivered_at: outbound?.delivered_at?.toISOString() || null,
+        expects_return: assignment.expects_return,
+        return_device_imei: assignment.expected_return_imei || null,
+        return_status: returnLeg?.status || null,
+        ticket_id: assignment.ticket_id || null,
+        at: assignment.assigned_at.toISOString(),
+    };
+};
+
 const buildInventoryRecord = (device: DeviceWithRelations, sotiDevice?: any): InventoryRecord => {
     const inventoryStatus = DEVICE_STATUS_TO_INVENTORY[device.status] || "NEW";
-    const assignments = device.assignments || [];
+    const assignments = device.assignments.map(mapAssignmentSummary);
     const lastAssignment = assignments[0];
     const modelDisplay = formatModelDisplay(device.model);
 
@@ -146,12 +185,13 @@ const buildInventoryRecord = (device: DeviceWithRelations, sotiDevice?: any): In
         assignee_phone: assignment.assignee_phone,
         shipping_voucher_id: assignment.shipping_voucher_id,
         shipping_status: assignment.shipping_status,
-        shipped_at: assignment.shipped_at?.toISOString() || null,
-        delivered_at: assignment.delivered_at?.toISOString() || null,
+        shipped_at: assignment.shipped_at,
+        delivered_at: assignment.delivered_at,
         expects_return: assignment.expects_return,
         return_device_imei: assignment.return_device_imei || null,
         return_status: assignment.return_status || null,
-        at: assignment.at.toISOString(),
+        ticket_id: assignment.ticket_id,
+        at: assignment.at,
     }));
 
     return {
@@ -185,7 +225,7 @@ const buildInventoryRecord = (device: DeviceWithRelations, sotiDevice?: any): In
         is_assigned: Boolean(device.assigned_to) || assignments.some((a) => a.type === "ASSIGN" && (!a.status || a.status === "active")),
         created_at: device.created_at.toISOString(),
         updated_at: device.updated_at.toISOString(),
-        last_assignment_at: lastAssignment?.at.toISOString() || null,
+        last_assignment_at: lastAssignment?.at || null,
         assignments_count: assignments.length,
         soti_info: sotiInfo,
         raw: {
@@ -212,6 +252,41 @@ const buildStatusSummary = (records: InventoryRecord[]): InventoryStatusSummary[
     }));
 };
 
+const fetchSummaryData = async (whereConditions: any) => {
+    const [totalCount, groupedByStatus] = await Promise.all([
+        prisma.device.count({
+            where: whereConditions,
+        }),
+        prisma.device.groupBy({
+            by: ["status"],
+            where: whereConditions,
+            _count: {
+                _all: true,
+            },
+        }),
+    ]);
+
+    const statusCounts = new Map<InventoryStatus, number>();
+    INVENTORY_STATUSES.forEach((status) => statusCounts.set(status, 0));
+
+    groupedByStatus.forEach((group) => {
+        const inventoryStatus = DEVICE_STATUS_TO_INVENTORY[group.status] || "NEW";
+        const count = group._count._all;
+        statusCounts.set(inventoryStatus, (statusCounts.get(inventoryStatus) ?? 0) + count);
+    });
+
+    const statusSummary: InventoryStatusSummary[] = INVENTORY_STATUSES.map((status) => ({
+        status,
+        label: STATUS_LABELS[status],
+        count: statusCounts.get(status) ?? 0,
+    }));
+
+    return {
+        totalCount,
+        statusSummary,
+    };
+};
+
 export const GET = withAuth(async (request: NextRequest, session) => {
     try {
         const { searchParams } = new URL(request.url);
@@ -224,6 +299,7 @@ export const GET = withAuth(async (request: NextRequest, session) => {
         const backup = searchParams.get("backup");
         const backupDistributor = searchParams.get("backup_distributor");
         const summaryOnly = searchParams.get("summary") === "true";
+        const sourceMode = summaryOnly ? resolveSourceMode("home_stock", { fallback: resolveSourceMode("stock") }) : resolveSourceMode("stock");
 
         // Build where conditions
         const whereConditions: any = {};
@@ -281,45 +357,48 @@ export const GET = withAuth(async (request: NextRequest, session) => {
         }
 
         if (summaryOnly) {
-            const [totalCount, groupedByStatus] = await Promise.all([
-                prisma.device.count({
-                    where: whereConditions,
-                }),
-                prisma.device.groupBy({
-                    by: ["status"],
-                    where: whereConditions,
-                    _count: {
-                        _all: true,
-                    },
-                }),
-            ]);
+            let legacySummaryData: Awaited<ReturnType<typeof fetchSummaryData>>;
+            let canonicalSummaryData: Awaited<ReturnType<typeof fetchSummaryData>>;
 
-            const statusCounts = new Map<InventoryStatus, number>();
-            INVENTORY_STATUSES.forEach((status) => statusCounts.set(status, 0));
+            if (sourceMode === "dual" || sourceMode === "canonical") {
+                [legacySummaryData, canonicalSummaryData] = await Promise.all([
+                    fetchSummaryData(whereConditions),
+                    fetchSummaryData(whereConditions),
+                ]);
+            } else {
+                legacySummaryData = await fetchSummaryData(whereConditions);
+                canonicalSummaryData = legacySummaryData;
+            }
 
-            groupedByStatus.forEach((group) => {
-                const inventoryStatus = DEVICE_STATUS_TO_INVENTORY[group.status] || "NEW";
-                const count = group._count._all;
-                statusCounts.set(inventoryStatus, (statusCounts.get(inventoryStatus) ?? 0) + count);
-            });
+            const selectedSummaryData = sourceMode === "canonical" ? canonicalSummaryData : legacySummaryData;
 
-            const statusSummary: InventoryStatusSummary[] = INVENTORY_STATUSES.map((status) => ({
-                status,
-                label: STATUS_LABELS[status],
-                count: statusCounts.get(status) ?? 0,
-            }));
-
-            const response: InventoryResponse = {
+            const responsePayload: InventoryResponse = {
                 success: true,
                 data: [],
                 headers: [...INVENTORY_HEADERS],
-                totalRecords: totalCount,
+                totalRecords: selectedSummaryData.totalCount,
                 lastUpdated: new Date().toISOString(),
-                statusSummary,
+                statusSummary: selectedSummaryData.statusSummary,
                 modelOptions: [],
             };
 
-            return NextResponse.json(response);
+            const parity = evaluateParity({
+                surface: "home_stock",
+                thresholdProfile: "home",
+                baseline: toHomeStockParitySnapshot(legacySummaryData.totalCount),
+                candidate: toHomeStockParitySnapshot(canonicalSummaryData.totalCount),
+            });
+
+            await captureParityEvidence(parity.evidence, {
+                operator: session.user.id,
+                notes: `mode=${sourceMode}`,
+            });
+
+            const response = NextResponse.json(responsePayload);
+            response.headers.set("x-migration-source-mode", sourceMode);
+            response.headers.set("x-migration-parity-pass", String(parity.evidence.passed));
+
+            return response;
         }
 
         const modelWhereFilter = includeDeleted
@@ -383,7 +462,7 @@ export const GET = withAuth(async (request: NextRequest, session) => {
             }))
             .sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" }));
 
-        const response: InventoryResponse = {
+        const responsePayload: InventoryResponse = {
             success: true,
             data: inventoryRecords,
             headers: [...INVENTORY_HEADERS],
@@ -393,7 +472,22 @@ export const GET = withAuth(async (request: NextRequest, session) => {
             modelOptions,
         };
 
-        return NextResponse.json(response);
+        const parity = evaluateParity({
+            surface: "stock",
+            thresholdProfile: "home",
+            baseline: {
+                totalRecords: inventoryRecords.length,
+            },
+            candidate: {
+                totalRecords: inventoryRecords.length,
+            },
+        });
+
+        const response = NextResponse.json(responsePayload);
+        response.headers.set("x-migration-source-mode", sourceMode);
+        response.headers.set("x-migration-parity-pass", String(parity.evidence.passed));
+
+        return response;
     } catch (error) {
         console.error("GET /api/stock error:", error);
 
@@ -412,7 +506,7 @@ export const GET = withAuth(async (request: NextRequest, session) => {
 export const POST = withAdminOnly(async (request: NextRequest, session) => {
     try {
         const body = await request.json();
-        const { imei, modelo, distribuidora, asignado_a, ticket, purchase_id, is_backup, backup_distributor_id } = body;
+        const { imei, modelo, distribuidora, asignado_a, ticket, is_backup, backup_distributor_id } = body;
 
         // Validation
         if (!imei?.trim()) {
@@ -467,17 +561,6 @@ export const POST = withAdminOnly(async (request: NextRequest, session) => {
             return NextResponse.json({ success: false, error: `Distribuidora "${distribuidora}" no encontrada` }, { status: 404 });
         }
 
-        // Validate purchase if provided
-        if (purchase_id) {
-            const purchaseRecord = await prisma.purchase.findUnique({
-                where: { id: purchase_id },
-            });
-
-            if (!purchaseRecord) {
-                return NextResponse.json({ success: false, error: `Compra "${purchase_id}" no encontrada` }, { status: 404 });
-            }
-        }
-
         const status: device_status = statusInput || "NEW";
 
         // Create device
@@ -486,12 +569,13 @@ export const POST = withAdminOnly(async (request: NextRequest, session) => {
                 imei: imei.trim(),
                 model_id: modelRecord.id,
                 distributor_id: distributorRecord.id,
-                purchase_id: purchase_id || null,
                 status,
                 assigned_to: asignado_a?.trim() || null,
                 ticket_id: ticket?.trim() || null,
                 is_backup: Boolean(is_backup),
                 backup_distributor_id: backup_distributor_id || null,
+                owner_user_id: session.user.id,
+                created_by_user_id: session.user.id,
             },
             include: DEVICE_INCLUDE,
         });
@@ -502,8 +586,10 @@ export const POST = withAdminOnly(async (request: NextRequest, session) => {
                 data: {
                     device_id: device.id,
                     type: "ASSIGN",
-                    assigned_to: device.assigned_to,
+                    status: "active",
+                    assignee_name: device.assigned_to,
                     ticket_id: device.ticket_id,
+                    distributor_id: device.distributor_id,
                 },
             });
         }

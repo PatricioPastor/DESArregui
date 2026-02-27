@@ -104,10 +104,10 @@ export const POST = withAdminOnly(async (request: NextRequest) => {
         const hasStructuredContext = Object.values(assignmentContext).some((value) => value);
         const serializedContext = hasStructuredContext ? JSON.stringify(assignmentContext) : null;
 
-        const device = await prisma.device_n1.findUnique({
+        const device = await prisma.device.findUnique({
             where: { id: data.device_id },
             include: {
-                assignments_n1: {
+                assignments: {
                     where: { status: "active" },
                     select: { id: true },
                     take: 1,
@@ -116,14 +116,14 @@ export const POST = withAdminOnly(async (request: NextRequest) => {
         });
 
         if (!device) {
-            return NextResponse.json({ error: "Dispositivo N1 no encontrado" }, { status: 404 });
+            return NextResponse.json({ error: "Dispositivo no encontrado" }, { status: 404 });
         }
 
         if (device.is_deleted) {
             return NextResponse.json({ error: "El dispositivo está eliminado y no puede ser asignado" }, { status: 400 });
         }
 
-        if (device.status === device_status.ASSIGNED || device.assignments_n1.length > 0) {
+        if (device.status === device_status.ASSIGNED || device.assignments.length > 0) {
             return NextResponse.json({ error: "El dispositivo ya tiene una asignación activa" }, { status: 400 });
         }
 
@@ -140,7 +140,7 @@ export const POST = withAdminOnly(async (request: NextRequest) => {
         const initialShippingStatus = data.generate_voucher ? "pending" : null;
 
         const assignment = await prisma.$transaction(async (tx) => {
-            const createdAssignment = await tx.assignment_n1.create({
+            const createdAssignment = await tx.assignment.create({
                 data: {
                     device_id: data.device_id,
                     type: assignmentTypeValue,
@@ -166,7 +166,7 @@ export const POST = withAdminOnly(async (request: NextRequest) => {
             });
 
             if (shippingVoucherId) {
-                await tx.shipment_n1.create({
+                await tx.shipment.create({
                     data: {
                         assignment_id: createdAssignment.id,
                         leg: "OUTBOUND",
@@ -176,7 +176,7 @@ export const POST = withAdminOnly(async (request: NextRequest) => {
                 });
             }
 
-            await tx.device_n1.update({
+            await tx.device.update({
                 where: { id: data.device_id },
                 data: {
                     status: device_status.ASSIGNED,
@@ -194,14 +194,14 @@ export const POST = withAdminOnly(async (request: NextRequest) => {
 
         return NextResponse.json({
             success: true,
-            message: `Asignación N1 creada exitosamente${shippingVoucherId ? ` con vale ${shippingVoucherId}` : ""}`,
+            message: `Asignación creada exitosamente${shippingVoucherId ? ` con vale ${shippingVoucherId}` : ""}`,
             data: toJSONSafe(assignment),
         });
     } catch (error) {
-        console.error("Error creating manual assignment N1:", error);
+        console.error("Error creating manual assignment:", error);
         return NextResponse.json(
             {
-                error: "Error al crear la asignación manual N1",
+                error: "Error al crear la asignación manual",
                 details: error instanceof Error ? error.message : "Error desconocido",
             },
             { status: 500 },
