@@ -254,6 +254,81 @@ model soti_device {
   @@schema("phones")
 }
 
+model soti_import_run {
+  id               BigInt              @id @default(autoincrement())
+  source_filename  String?
+  sync_token       DateTime            @unique
+  status           String              @default("processing")
+  total_rows       Int                 @default(0)
+  valid_rows       Int                 @default(0)
+  invalid_rows     Int                 @default(0)
+  created_rows     Int                 @default(0)
+  updated_rows     Int                 @default(0)
+  deactivated_rows Int                 @default(0)
+  started_at       DateTime            @default(now())
+  finished_at      DateTime?
+  error_message    String?
+  created_at       DateTime            @default(now())
+  updated_at       DateTime            @updatedAt
+  devices          soti_import_device[]
+
+  @@index([status])
+  @@index([started_at])
+  @@map("soti_import_run")
+  @@schema("phones")
+}
+
+model soti_import_device {
+  id                        BigInt           @id @default(autoincrement())
+  identity_imei             String
+  device_name               String
+  assigned_user             String?
+  model                     String?
+  route                     String?
+  phone_number              String?
+  phone_fallback            String?
+  registration_time         String?
+  enrollment_time           String?
+  connection_date           String?
+  disconnection_date        String?
+  phone                     String?
+  jira_ticket               String?
+  bssid_network             String?
+  ssid_network              String?
+  jira_ticket_id_raw        String?
+  jira_ticket_id_normalized String?
+  manufacturer              String?
+  total_storage             String?
+  total_memory              String?
+  cellular_operator         String?
+  os_version                String?
+  locality                  String?
+  company                   String?
+  jira_request_raw          String?
+  jira_request_normalized   String?
+  custom_phone              String?
+  custom_email              String?
+  android_enter_email       String?
+  location                  String?
+  import_run_id             BigInt?
+  is_active                 Boolean          @default(true)
+  first_seen_at             DateTime         @default(now())
+  last_seen_at              DateTime         @default(now())
+  created_at                DateTime         @default(now())
+  updated_at                DateTime         @updatedAt
+  import_run                soti_import_run? @relation(fields: [import_run_id], references: [id], onDelete: SetNull)
+
+  @@unique([identity_imei, device_name])
+  @@index([identity_imei])
+  @@index([device_name])
+  @@index([is_active])
+  @@index([import_run_id])
+  @@index([jira_ticket_id_normalized])
+  @@index([jira_request_normalized])
+  @@map("soti_import_device")
+  @@schema("phones")
+}
+
 model incident {
   id          String               @id @default(cuid())
   name        String

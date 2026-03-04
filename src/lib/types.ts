@@ -35,6 +35,147 @@ export interface SOTIRecord {
     ubicacion: string;
 }
 
+// ==================== SOTI IMPORT MODULE ====================
+
+export const SOTI_IMPORT_REQUIRED_HEADERS = ["Nombre de Dispositivo", "IMEI / MEID / ESN"] as const;
+
+export interface SotiImportRowInput {
+    "Nombre de Dispositivo": string;
+    "Nom User"?: string;
+    "Usuario Asignado"?: string;
+    Modelo?: string;
+    "IMEI / MEID / ESN": string;
+    Ruta?: string;
+    "Número de Teléfono"?: string;
+    Telefono?: string;
+    "Tks de Jira"?: string;
+    Fabricante?: string;
+    "Almacenamiento Total"?: string;
+    "Memoria Total"?: string;
+    Ubicacion?: string;
+    "Operador Celular"?: string;
+    "Versión de SO"?: string;
+    Localidad?: string;
+    Empresa?: string;
+    "Solicitud JIRA"?: string;
+    "Hora de Registro"?: string;
+    "Hora de Inscripción"?: string;
+    "Fecha de Conexión"?: string;
+    "Fecha de Desconexión"?: string;
+    "BSSID de Red"?: string;
+    "SSID de Red"?: string;
+    "ID de Ticket de Jira"?: string;
+    "Telefono Custom"?: string;
+    "Correo Custom"?: string;
+    "Android Enterprise Email"?: string;
+    Ubicación?: string;
+}
+
+export interface CanonicalSotiImportRow {
+    identityImei: string;
+    deviceName: string;
+    assignedUser: string | null;
+    model: string | null;
+    route: string | null;
+    phoneNumber: string | null;
+    phoneFallback: string | null;
+    registrationTime: string | null;
+    enrollmentTime: string | null;
+    connectionDate: string | null;
+    disconnectionDate: string | null;
+    phone: string | null;
+    jiraTicket: string | null;
+    bssidNetwork: string | null;
+    ssidNetwork: string | null;
+    jiraTicketIdRaw: string | null;
+    jiraTicketIdNormalized: string | null;
+    manufacturer: string | null;
+    totalStorage: string | null;
+    totalMemory: string | null;
+    cellularOperator: string | null;
+    osVersion: string | null;
+    locality: string | null;
+    company: string | null;
+    jiraRequestRaw: string | null;
+    jiraRequestNormalized: string | null;
+    customPhone: string | null;
+    customEmail: string | null;
+    androidEnterEmail: string | null;
+    location: string | null;
+    sourceRowIndex: number;
+    sourceRecord: Record<string, unknown>;
+}
+
+export interface SotiImportRowError {
+    rowIndex: number;
+    reason: string;
+    sourceRecord: Record<string, unknown>;
+}
+
+export interface SotiImportSummary {
+    totalRows: number;
+    validRows: number;
+    invalidRows: number;
+}
+
+export interface SotiSyncRequest {
+    rows?: SotiImportRowInput[];
+    csvContent?: string;
+    syncToken?: string;
+    finalize?: boolean;
+    chunkIndex?: number;
+    totalChunks?: number;
+    sourceFileName?: string;
+}
+
+export interface SotiSyncResponse {
+    success: boolean;
+    processed: number;
+    created: number;
+    updated: number;
+    deactivated: number;
+    invalid: number;
+    errors: number;
+    error?: string;
+    errorDetails?: Array<{ rowIndex: number; error: string }>;
+}
+
+export interface SotiStockRecord {
+    id: string;
+    identity_imei: string;
+    device_name: string;
+    assigned_user: string | null;
+    model: string | null;
+    route: string | null;
+    phone: string | null;
+    jira_ticket_id_normalized: string | null;
+    is_active: boolean;
+    last_seen_at: string;
+    updated_at: string;
+}
+
+export interface SotiStockPagination {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+}
+
+export interface SotiStockSummary {
+    activeRecords: number;
+    inactiveRecords: number;
+}
+
+export interface SotiStockResponse {
+    success: boolean;
+    data?: SotiStockRecord[];
+    totalRecords?: number;
+    lastUpdated?: string;
+    pagination?: SotiStockPagination;
+    summary?: SotiStockSummary;
+    error?: string;
+}
+
 // API Response types
 export interface BaseSheetResponse {
     success: boolean;
