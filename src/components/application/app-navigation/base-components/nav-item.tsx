@@ -4,6 +4,7 @@ import type { FC, HTMLAttributes, MouseEventHandler, ReactNode } from "react";
 import { ChevronDown, Share04 } from "@untitledui/icons";
 import { Link as AriaLink } from "react-aria-components";
 import { Badge } from "@/components/base/badges/badges";
+import { Tooltip } from "@/components/base/tooltip/tooltip";
 import { cx, sortCx } from "@/utils/cx";
 
 const styles = sortCx({
@@ -34,11 +35,12 @@ interface NavItemBaseProps {
     children?: ReactNode;
 }
 
-export const NavItemBase = ({ current, type, badge, href, icon: Icon, children, truncate = true, onClick }: NavItemBaseProps) => {
-    const iconElement = Icon && <Icon aria-hidden="true" className="mr-2 size-5 shrink-0 text-fg-quaternary transition-inherit-all" />;
+export const NavItemBase = ({ current, type, badge, href, icon: Icon, iconOnly = false, children, truncate = true, onClick }: NavItemBaseProps) => {
+    const iconElement = Icon && <Icon aria-hidden="true" className={cx("size-5 shrink-0 text-fg-quaternary transition-inherit-all", !iconOnly && "mr-2")} />;
+    const label = typeof children === "string" ? children : undefined;
 
     const badgeElement =
-        badge && (typeof badge === "string" || typeof badge === "number") ? (
+        iconOnly || !badge ? null : typeof badge === "string" || typeof badge === "number" ? (
             <Badge className="ml-3" color="gray" type="pill-color" size="sm">
                 {badge}
             </Badge>
@@ -46,7 +48,7 @@ export const NavItemBase = ({ current, type, badge, href, icon: Icon, children, 
             badge
         );
 
-    const labelElement = (
+    const labelElement = iconOnly ? null : (
         <span
             className={cx(
                 "flex-1 text-md font-semibold text-secondary transition-inherit-all group-hover:text-secondary_hover",
@@ -59,47 +61,60 @@ export const NavItemBase = ({ current, type, badge, href, icon: Icon, children, 
     );
 
     const isExternal = href && href.startsWith("http");
-    const externalIcon = isExternal && <Share04 className="size-4 stroke-[2.5px] text-fg-quaternary" />;
+    const externalIcon = isExternal && !iconOnly && <Share04 className="size-4 stroke-[2.5px] text-fg-quaternary" />;
 
     if (type === "collapsible") {
         return (
-            <summary className={cx("px-3 py-2", styles.root, current && styles.rootSelected)} onClick={onClick}>
+            <summary className={cx("px-3 py-2", styles.root, current && styles.rootSelected)} onClick={onClick} aria-label={iconOnly ? label : undefined}>
                 {iconElement}
 
                 {labelElement}
 
                 {badgeElement}
 
-                <ChevronDown aria-hidden="true" className="ml-3 size-4 shrink-0 stroke-[2.5px] text-fg-quaternary in-open:-scale-y-100" />
+                {!iconOnly ? <ChevronDown aria-hidden="true" className="ml-3 size-4 shrink-0 stroke-[2.5px] text-fg-quaternary in-open:-scale-y-100" /> : null}
             </summary>
         );
     }
 
     if (type === "collapsible-child") {
-        return (
+        const childLink = (
             <AriaLink
                 href={href!}
                 target={isExternal ? "_blank" : "_self"}
                 rel="noopener noreferrer"
-                className={cx("py-2 pr-3 pl-10", styles.root, current && styles.rootSelected)}
+                className={cx(iconOnly ? "p-2" : "py-2 pr-3 pl-10", styles.root, current && styles.rootSelected, iconOnly && "justify-center")}
                 onClick={onClick}
                 aria-current={current ? "page" : undefined}
+                aria-label={iconOnly ? label : undefined}
             >
+                {iconElement}
                 {labelElement}
                 {externalIcon}
                 {badgeElement}
             </AriaLink>
         );
+
+        if (iconOnly && label) {
+            return (
+                <Tooltip title={label} placement="right">
+                    {childLink}
+                </Tooltip>
+            );
+        }
+
+        return childLink;
     }
 
-    return (
+    const linkElement = (
         <AriaLink
             href={href!}
             target={isExternal ? "_blank" : "_self"}
             rel="noopener noreferrer"
-            className={cx("px-3 py-2", styles.root, current && styles.rootSelected)}
+            className={cx(iconOnly ? "p-2" : "px-3 py-2", styles.root, current && styles.rootSelected, iconOnly && "justify-center")}
             onClick={onClick}
             aria-current={current ? "page" : undefined}
+            aria-label={iconOnly ? label : undefined}
         >
             {iconElement}
             {labelElement}
@@ -107,4 +122,14 @@ export const NavItemBase = ({ current, type, badge, href, icon: Icon, children, 
             {badgeElement}
         </AriaLink>
     );
+
+    if (iconOnly && label) {
+        return (
+            <Tooltip title={label} placement="right">
+                {linkElement}
+            </Tooltip>
+        );
+    }
+
+    return linkElement;
 };

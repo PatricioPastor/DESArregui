@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DEVICE_STATUS_LABELS } from "@/constants/device-status";
 import prisma from "@/lib/prisma";
 import { type AssignmentOperationalItem, DeviceOperationalClient, type DeviceOperationalData } from "./device-operational.client";
+import { DeviceDetailShellHeaderBridge } from "./device-shell-header-bridge";
 
 const STATUS_COLOR_BY_LABEL: Record<string, "success" | "brand" | "warning" | "gray" | "error"> = {
     Nuevo: "success",
@@ -138,23 +138,7 @@ export default async function DeviceDetailPage({ params }: { params: Promise<Dev
 
     return (
         <section className="flex flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-            <header className="flex flex-col gap-4 border-b border-secondary pb-4">
-                <div className="text-sm text-tertiary">
-                    <Link href="/stock" className="transition hover:text-primary">
-                        Inventario
-                    </Link>
-                    <span className="mx-2">/</span>
-                    <span className="font-medium text-secondary">IMEI {device.imei}</span>
-                </div>
-
-                <div>
-                    <h1 className="text-2xl font-semibold tracking-tight text-primary">{modelDisplay}</h1>
-                    <p className="mt-1 text-sm text-tertiary">
-                        IMEI <span className="font-mono text-secondary">{device.imei}</span>
-                    </p>
-                </div>
-            </header>
-
+            <DeviceDetailShellHeaderBridge model={modelDisplay} imei={device.imei} />
             <DeviceOperationalClient initialData={initialData} />
         </section>
     );

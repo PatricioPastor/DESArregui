@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowCircleRight, ArrowRight, BarChart03, Box, CheckCircle, Database01, Signal01, Truck01 } from "@untitledui/icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAuthShellHeader } from "@/components/application/app-navigation/auth-shell-header/use-auth-shell-header";
 import { Button } from "@/components/base/buttons/button";
 import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icons";
 import { useKpiData } from "@/hooks/use-kpi-data";
@@ -81,6 +82,7 @@ type MeRolesData = {
 export default function HomePage() {
     const router = useRouter();
     const { data: session } = useSession();
+    const { setHeader, resetHeader } = useAuthShellHeader();
     const [meRoles, setMeRoles] = useState<MeRolesData | null>(null);
 
     const canViewStock = Boolean(meRoles?.isAdmin || meRoles?.roleNames.includes("stock-viewer"));
@@ -98,6 +100,17 @@ export default function HomePage() {
         if (!session?.user) return;
         void loadRoles();
     }, [session?.user]);
+
+    useEffect(() => {
+        setHeader({
+            title: "Inicio",
+            subtitle: "Resumen general y accesos rapidos",
+        });
+
+        return () => {
+            resetHeader();
+        };
+    }, [resetHeader, setHeader]);
 
     // Use state to avoid hydration issues
     const [quarterRange, setQuarterRange] = useState<{ start: string; end: string } | null>(null);
@@ -242,12 +255,6 @@ export default function HomePage() {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col gap-2">
-                <h1 className="text-2xl font-semibold tracking-tight">Inicio</h1>
-                <p className="text-sm text-tertiary">Resumen general y accesos rápidos</p>
-            </div>
-
             {/* Alertas */}
             {(canViewStock || canViewSims) && (
                 <section className="space-y-3">

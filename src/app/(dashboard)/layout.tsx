@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useState } from "react";
 import { BarChart03, Home01, Package, Signal01, Users01 } from "@untitledui/icons";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { AuthShellHeader } from "@/components/application/app-navigation/auth-shell-header/auth-shell-header";
+import { AuthShellHeaderProvider } from "@/components/application/app-navigation/auth-shell-header/auth-shell-header-provider";
 import { SidebarNavigationSimple } from "@/components/application/app-navigation/sidebar-navigation/sidebar-simple";
 import { signOut, useSession } from "@/lib/auth-client";
 import { type GranularRoleName, canAccessPathWithRoles, getFirstAllowedModulePath } from "@/lib/iam/permissions";
@@ -54,6 +56,7 @@ export default function DashboardLayout({ children }: Readonly<DashboardLayoutPr
 
     const [meRoles, setMeRoles] = useState<MeRolesData | null>(null);
     const [rolesLoading, setRolesLoading] = useState(true);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
     useEffect(() => {
         if (isPending) return;
@@ -114,7 +117,7 @@ export default function DashboardLayout({ children }: Readonly<DashboardLayoutPr
         void loadMeRoles();
     }, [router, userId]);
 
-    const filteredNavigation = useMemo(() => {
+    const filteredNavigation = (() => {
         if (!meRoles) {
             return [];
         }
@@ -138,7 +141,20 @@ export default function DashboardLayout({ children }: Readonly<DashboardLayoutPr
 
             return meRoles.roleNames.includes(item.requiredRole);
         });
-    }, [meRoles]);
+    })();
+
+    const activeNavigationItem = filteredNavigation.find((item) => {
+        if (item.href === pathname) {
+            return true;
+        }
+
+        return pathname.startsWith(item.href + "/");
+    });
+
+    const defaultHeaderTitle = activeNavigationItem?.label ?? "Panel";
+    const desktopContentOffset = isSidebarCollapsed
+        ? "calc(var(--auth-shell-sidebar-width-collapsed) + 16px)"
+        : "calc(var(--auth-shell-sidebar-width-expanded) + 16px)";
 
     useEffect(() => {
         if (rolesLoading || !meRoles) return;
@@ -179,10 +195,20 @@ export default function DashboardLayout({ children }: Readonly<DashboardLayoutPr
     }
 
     return (
-        <div className="relative min-h-dvh w-full">
-            <SidebarNavigationSimple items={filteredNavigation} activeUrl={pathname} />
+        <div className="relative min-h-dvh w-full" style={{ "--auth-shell-content-offset": desktopContentOffset } as CSSProperties}>
+            <AuthShellHeaderProvider defaultHeader={{ title: defaultHeaderTitle }}>
+                <SidebarNavigationSimple
+                    items={filteredNavigation}
+                    activeUrl={pathname}
+                    collapsed={isSidebarCollapsed}
+                    onCollapsedChange={setIsSidebarCollapsed}
+                />
 
-            <main className="min-h-screen w-full px-4 py-6 sm:px-6 lg:pr-6 lg:pl-[312px]">{children}</main>
+                <main className="min-h-screen w-full pb-6">
+                    <AuthShellHeader className="sticky top-0 z-20 lg:ml-[calc(var(--auth-shell-content-offset)-16px)] lg:w-[calc(100%-var(--auth-shell-content-offset)+16px)]" />
+                    <div className="px-4 pt-4 sm:px-6 lg:pr-6 lg:pl-[var(--auth-shell-content-offset)]">{children}</div>
+                </main>
+            </AuthShellHeaderProvider>
         </div>
     );
 }

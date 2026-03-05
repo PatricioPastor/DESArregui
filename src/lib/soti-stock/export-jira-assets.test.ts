@@ -44,6 +44,7 @@ describe("soti jira assets export", () => {
                 {
                     imei: "358263680502475",
                     distributor: "EDEN",
+                    ownerName: null,
                     model: "Samsung A23",
                     manufacturer: "Samsung",
                     storageGb: 64,
@@ -52,6 +53,7 @@ describe("soti jira assets export", () => {
                 {
                     imei: "359999999999999",
                     distributor: "EDEA",
+                    ownerName: "Patricio Pastor",
                     model: "Moto G54",
                     manufacturer: "Motorola",
                     storageGb: 128,
@@ -71,9 +73,12 @@ describe("soti jira assets export", () => {
         });
         expect(rows[1]).toMatchObject({
             distribuidora: "EDEA",
-            idSoti: "",
+            idSoti: "No Aplica",
+            usuario: "Patricio Pastor (BACKUP)",
+            numeroTelefono: "Sin Linea",
+            ticketJira: "No Aplica",
             almacenamiento: "128",
-            numeroTelefono: "",
+            localidad: "EDEA DEPOSITO",
             sotiActivo: "NO",
         });
     });
@@ -150,5 +155,30 @@ describe("soti jira assets export", () => {
 
         expect(rows[0]?.numeroTelefono).toBe("2211111111");
         expect(rows[1]?.numeroTelefono).toBe("2233333333");
+    });
+
+    it("maps stock-only defaults for Jira Assets export", () => {
+        const rows = buildJiraAssetsExportRows({
+            sotiRecords: [],
+            stockNuevoRecords: [
+                {
+                    imei: "359123456789012",
+                    distributor: "EDES",
+                    ownerName: "Juan Perez",
+                    model: "Galaxy A16",
+                    manufacturer: "Samsung",
+                    storageGb: 256,
+                    ticketJira: "DESA-12345",
+                },
+            ],
+        });
+
+        expect(rows[0]).toMatchObject({
+            idSoti: "No Aplica",
+            usuario: "Juan Perez (BACKUP)",
+            numeroTelefono: "Sin Linea",
+            ticketJira: "No Aplica",
+            localidad: "EDES DEPOSITO",
+        });
     });
 });

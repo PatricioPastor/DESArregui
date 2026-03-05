@@ -124,6 +124,11 @@ export const GET = withRoles(["stock-viewer"], async (request: NextRequest) => {
                             name: true,
                         },
                     },
+                    owner_user: {
+                        select: {
+                            name: true,
+                        },
+                    },
                 },
             }),
         ]);
@@ -151,6 +156,7 @@ export const GET = withRoles(["stock-viewer"], async (request: NextRequest) => {
             stockNuevoRecords: stockRows.map((row) => ({
                 imei: row.imei,
                 distributor: row.distributor?.name ?? null,
+                ownerName: row.owner_user?.name ?? null,
                 model: [row.model.brand, row.model.model].filter(Boolean).join(" "),
                 manufacturer: row.model.brand,
                 storageGb: row.model.storage_gb,

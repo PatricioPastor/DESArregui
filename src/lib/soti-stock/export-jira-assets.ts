@@ -21,6 +21,7 @@ export interface SotiJiraExportSourceRecord {
 export interface StockNuevoJiraExportSourceRecord {
     imei: string;
     distributor: string | null;
+    ownerName: string | null;
     model: string | null;
     manufacturer: string | null;
     storageGb: number | null;
@@ -193,22 +194,27 @@ export const buildJiraAssetsExportRows = (params: {
             const imei = toTrimmed(record.imei);
             return imei.length > 0 && !existingImeis.has(imei);
         })
-        .map<JiraAssetExportRecord>((record) => ({
-            distribuidora: toTrimmed(record.distributor).toUpperCase(),
-            idSoti: "",
-            usuario: "",
-            modelo: toTrimmed(record.model),
-            imei: toTrimmed(record.imei),
-            numeroTelefono: "",
-            ticketJira: toTrimmed(record.ticketJira),
-            fabricante: toTrimmed(record.manufacturer),
-            almacenamiento: normalizeGb(record.storageGb),
-            ram: "",
-            localidad: "",
-            operadorCelular: "",
-            versionSo: "",
-            sotiActivo: "NO",
-        }));
+        .map<JiraAssetExportRecord>((record) => {
+            const distribuidora = toTrimmed(record.distributor).toUpperCase();
+            const ownerName = toTrimmed(record.ownerName);
+
+            return {
+                distribuidora,
+                idSoti: "No Aplica",
+                usuario: ownerName ? `${ownerName} (BACKUP)` : "BACKUP",
+                modelo: toTrimmed(record.model),
+                imei: toTrimmed(record.imei),
+                numeroTelefono: "Sin Linea",
+                ticketJira: "No Aplica",
+                fabricante: toTrimmed(record.manufacturer),
+                almacenamiento: normalizeGb(record.storageGb),
+                ram: "",
+                localidad: distribuidora ? `${distribuidora} DEPOSITO` : "DEPOSITO",
+                operadorCelular: "",
+                versionSo: "",
+                sotiActivo: "NO",
+            };
+        });
 
     return [...sotiRows, ...stockRows];
 };

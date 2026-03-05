@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Bell01, CheckCircle, Copy01, Eye, Package, SearchLg } from "@untitledui/icons";
-import Link from "next/link";
+import { useAuthShellHeader } from "@/components/application/app-navigation/auth-shell-header/use-auth-shell-header";
 import { PaginationCardMinimal } from "@/components/application/pagination/pagination";
 import { Tabs } from "@/components/application/tabs/tabs";
 import { Avatar } from "@/components/base/avatar/avatar";
@@ -18,12 +18,9 @@ import { clearFilteredStockCache, useFilteredStockData } from "@/hooks/use-stock
 import type { InventoryRecord } from "@/lib/types";
 import { formatDate, getDeviceState, getDistribuidoraName, getTicketInfo, isRecordAssigned } from "@/utils/stock-utils";
 import { ModelsAndAccessoriesTab } from "./models-and-accessories-tab";
-import { SotiLogo } from "./soti-logo";
 import { SotiStockTab } from "./soti-stock-tab";
 
 const PAGE_SIZE = 16;
-const SOTI_LICENSES_TOTAL = 1944;
-const SOTI_LICENSES_IN_USE = 1901;
 
 type MainContextTab = "mine" | "inventory" | "soti" | "catalog";
 type SidebarCategory = "new" | "used" | "assigned";
@@ -110,6 +107,7 @@ function DeviceRow({ record, selected, onSelect }: { record: InventoryRecord; se
 }
 
 export function StockN1Dashboard() {
+    const { setHeader, resetHeader } = useAuthShellHeader();
     const [mainContext, setMainContext] = useState<MainContextTab>("mine");
     const [globalSearch, setGlobalSearch] = useState("");
     const [page, setPage] = useState(1);
@@ -172,8 +170,6 @@ export function StockN1Dashboard() {
         assigned: assignedDevicesCount,
     };
     const activeSidebarLabel = SIDEBAR_CATEGORIES.find((item) => item.id === sidebarCategory)?.label || "Inventario";
-    const sotiLicensesFree = Math.max(0, SOTI_LICENSES_TOTAL - SOTI_LICENSES_IN_USE);
-    const sotiUsagePercent = Math.min(100, Math.round((SOTI_LICENSES_IN_USE / SOTI_LICENSES_TOTAL) * 100));
 
     const paginatedRecords = records;
     const totalPages = pagination?.totalPages || 1;
@@ -191,6 +187,27 @@ export function StockN1Dashboard() {
 
         return stockUsers.filter((user) => `${user.label} ${user.supportingText || ""}`.toLowerCase().includes(needle));
     }, [stockUsers, backupUserSearch]);
+
+    const headerActions = useMemo(
+        () => (
+            <Button color="primary" size="sm" onClick={() => setIsCreateModalOpen(true)}>
+                Nuevo Activo
+            </Button>
+        ),
+        [],
+    );
+
+    useEffect(() => {
+        setHeader({
+            title: "Inventario",
+            subtitle: "Gestion operativa de activos con vista rapida por estado",
+            actions: headerActions,
+        });
+
+        return () => {
+            resetHeader();
+        };
+    }, [headerActions, resetHeader, setHeader]);
 
     useEffect(() => {
         setPage(1);
@@ -327,31 +344,6 @@ export function StockN1Dashboard() {
 
     return (
         <div className="space-y-3 pb-2">
-            <section className="rounded-2xl border border-secondary bg-primary p-3 shadow-sm md:p-4">
-                <p className="text-xs text-secondary">
-                    <Link href="/" className="transition-colors hover:text-primary">
-                        Inicio
-                    </Link>
-                    <span className="mx-2 text-tertiary">/</span>
-                    <Link href="/stock" className="transition-colors hover:text-primary">
-                        Inventario
-                    </Link>
-                    <span className="mx-2 text-tertiary">/</span>
-                    <span className="font-medium text-primary">Inventario</span>
-                </p>
-
-                <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div>
-                        <h1 className="text-2xl font-semibold tracking-tight text-primary">Inventario</h1>
-                        <p className="mt-1 text-sm text-secondary">Gestión operativa de activos con vista rápida por estado.</p>
-                    </div>
-
-                    <Button color="primary" size="sm" onClick={() => setIsCreateModalOpen(true)}>
-                        Nuevo Activo
-                    </Button>
-                </div>
-            </section>
-
             <header className="rounded-2xl border border-secondary bg-primary p-3 shadow-sm md:p-4">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                     <Tabs selectedKey={mainContext} onSelectionChange={(key) => setMainContext(key as MainContextTab)} className="w-full xl:w-auto">
@@ -361,14 +353,16 @@ export function StockN1Dashboard() {
                     </Tabs>
 
                     <div className="flex w-full items-center gap-2 xl:w-auto">
-                        <Input
-                            aria-label="Búsqueda global"
-                            icon={SearchLg}
-                            placeholder="Buscar por IMEI, modelo, ticket o asignatario…"
-                            value={globalSearch}
-                            onChange={setGlobalSearch}
-                            className="w-full xl:w-96"
-                        />
+                        {mainContext !== "soti" ? (
+                            <Input
+                                aria-label="Búsqueda global"
+                                icon={SearchLg}
+                                placeholder="Buscar por IMEI, modelo, ticket o asignatario…"
+                                value={globalSearch}
+                                onChange={setGlobalSearch}
+                                className="w-full xl:w-96"
+                            />
+                        ) : null}
                         <ButtonUtility icon={Bell01} tooltip="Notificaciones" size="sm" color="secondary" />
                     </div>
                 </div>
@@ -444,22 +438,6 @@ export function StockN1Dashboard() {
                                 </Select>
                             </div>
                         )}
-
-                        <div className="mt-auto rounded-xl border border-secondary bg-primary px-3 py-3 shadow-xs">
-                            <div className="flex items-center gap-2">
-                                <SotiLogo className="h-5 w-auto shrink-0" />
-                                <p className="text-xs font-bold text-primary">Licencias Disponibles</p>
-                            </div>
-                            <p className="mt-1 text-xs text-secondary">
-                                {SOTI_LICENSES_IN_USE} en uso de {SOTI_LICENSES_TOTAL} disponibles
-                            </p>
-                            <div className="mt-2 h-2 rounded-full bg-secondary">
-                                <div className="h-2 rounded-full" style={{ width: `${sotiUsagePercent}%`, backgroundColor: "#0074aa" }} />
-                            </div>
-                            <p className="mt-1 text-[11px] text-secondary">
-                                {sotiLicensesFree} libres ({sotiUsagePercent}% en uso)
-                            </p>
-                        </div>
                     </aside>
 
                     <main className="min-h-0 space-y-0">

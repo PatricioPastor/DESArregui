@@ -8,7 +8,7 @@ import { NavItemBase } from "./nav-item";
 const isRouteActive = (itemHref: string, activeUrl?: string): boolean => {
     if (!activeUrl || !itemHref) return false;
     if (itemHref === activeUrl) return true;
-    return activeUrl.startsWith(itemHref + '/');
+    return activeUrl.startsWith(itemHref + "/");
 };
 
 interface NavListProps {
@@ -18,16 +18,48 @@ interface NavListProps {
     className?: string;
     /** List of items to display. */
     items: (NavItemType | NavItemDividerType)[];
+    /** Whether to render icon-only collapsed mode. */
+    collapsed?: boolean;
 }
 
-export const NavList = ({ activeUrl, items, className }: NavListProps) => {
+export const NavList = ({ activeUrl, items, className, collapsed = false }: NavListProps) => {
     const [open, setOpen] = useState(false);
     const activeItem = items.find((item) => isRouteActive(item.href!, activeUrl) || item.items?.some((subItem) => isRouteActive(subItem.href, activeUrl)));
     const [currentItem, setCurrentItem] = useState(activeItem);
 
+    if (collapsed) {
+        return (
+            <ul className={cx("mt-4 flex flex-col items-center px-2 lg:px-3", className)}>
+                {items.map((item, index) => {
+                    if (item.divider) {
+                        return (
+                            <li key={index} className="w-full px-1 py-2">
+                                <hr className="h-px w-full border-none bg-border-secondary" />
+                            </li>
+                        );
+                    }
+
+                    return (
+                        <li key={item.label} className="py-0.5">
+                            <NavItemBase
+                                type="link"
+                                iconOnly
+                                badge={item.badge}
+                                icon={item.icon}
+                                href={item.href}
+                                current={isRouteActive(item.href!, activeUrl)}
+                            >
+                                {item.label}
+                            </NavItemBase>
+                        </li>
+                    );
+                })}
+            </ul>
+        );
+    }
+
     return (
         <ul className={cx("mt-4 flex flex-col px-2 lg:px-4", className)}>
-
             {items.map((item, index) => {
                 if (item.divider) {
                     return (

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Edit01, RefreshCw01 } from "@untitledui/icons";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useAuthShellHeader } from "@/components/application/app-navigation/auth-shell-header/use-auth-shell-header";
 import { Table, TableCard } from "@/components/application/table/table";
 import { AvatarLabelGroup } from "@/components/base/avatar/avatar-label-group";
 import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
@@ -66,6 +67,7 @@ function extractUsersFromAdminListUsersResponse(response: unknown): IAMUserRow[]
 export default function IAMUsersPage() {
     const router = useRouter();
     const { data: session, isPending } = useSession();
+    const { setHeader, resetHeader } = useAuthShellHeader();
 
     const [users, setUsers] = useState<IAMUserRow[]>([]);
     const [loading, setLoading] = useState(true);
@@ -119,6 +121,17 @@ export default function IAMUsersPage() {
 
         void loadUsers();
     }, []);
+
+    useEffect(() => {
+        setHeader({
+            title: "IAM - Usuarios",
+            subtitle: "Gestion de usuarios (solo admin)",
+        });
+
+        return () => {
+            resetHeader();
+        };
+    }, [resetHeader, setHeader]);
 
     const openRolesModal = (user: IAMUserRow) => {
         setRolesModalUser(user);
@@ -222,11 +235,6 @@ export default function IAMUsersPage() {
     return (
         <>
             <div className="flex flex-col gap-6">
-                <div>
-                    <h1 className="text-2xl font-semibold text-primary">IAM · Usuarios</h1>
-                    <p className="mt-1 text-sm text-secondary">Gestión de usuarios (solo admin).</p>
-                </div>
-
                 {error && <div className="border-danger bg-danger/10 text-danger rounded-md border px-4 py-3 text-sm">{error}</div>}
 
                 <TableCard.Root>

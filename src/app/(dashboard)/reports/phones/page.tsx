@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowCircleRight, Box, HeartHand, Plus, Stars02 } from "@untitledui/icons";
 import { toast } from "sonner";
+import { useAuthShellHeader } from "@/components/application/app-navigation/auth-shell-header/use-auth-shell-header";
 import { DateRangePicker } from "@/components/application/date-picker/date-range-picker";
 import { Button } from "@/components/base/buttons/button";
 import { Select } from "@/components/base/select/select";
@@ -48,6 +49,7 @@ const getQuarterDateRange = (quarter: string): { start: string; end: string } =>
 };
 
 export default function TelefonosTicketsDashboard() {
+    const { setHeader, resetHeader } = useAuthShellHeader();
     const [selectedQuarter, setSelectedQuarter] = useState<string>("Q2");
     const [dateRange, setDateRange] = useState<{ start?: string; end?: string }>(getQuarterDateRange("Q2"));
     const { data: session } = useSession();
@@ -253,6 +255,70 @@ export default function TelefonosTicketsDashboard() {
         },
     ];
 
+    const headerActions = useMemo(
+        () => (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                <div className="min-w-36">
+                    <Select
+                        aria-label="Seleccionar periodo"
+                        label=""
+                        placeholder="Seleccionar período"
+                        selectedKey={selectedQuarter}
+                        onSelectionChange={(key) => {
+                            const quarter = key as string;
+                            setSelectedQuarter(quarter);
+
+                            if (quarter !== "custom") {
+                                const range = getQuarterDateRange(quarter);
+                                setDateRange(range);
+                            } else {
+                                setDateRange({});
+                            }
+                        }}
+                        items={quarterOptions}
+                        className="w-full"
+                    >
+                        {(item) => <Select.Item id={item.id}>{item.label}</Select.Item>}
+                    </Select>
+                </div>
+
+                <div className="min-w-48">
+                    <DateRangePicker
+                        key={selectedQuarter}
+                        className="w-full"
+                        isDisabled={selectedQuarter !== "custom"}
+                        onChange={(range) => {
+                            if (range?.start && range?.end) {
+                                const startDate = `${range.start.year}-${String(range.start.month).padStart(2, "0")}-${String(range.start.day).padStart(2, "0")}`;
+                                const endDate = `${range.end.year}-${String(range.end.month).padStart(2, "0")}-${String(range.end.day).padStart(2, "0")}`;
+                                setDateRange({ start: startDate, end: endDate });
+                            }
+                        }}
+                    />
+                </div>
+
+                {isAdminUser ? <SyncTicketsButton onSyncComplete={() => refetch()} /> : null}
+
+                <Button color="secondary" iconLeading={Stars02} size="sm" onClick={() => toast.info("En desarrollo")}>
+                    AI
+                </Button>
+            </div>
+        ),
+        [isAdminUser, refetch, selectedQuarter],
+    );
+
+    useEffect(() => {
+        setHeader({
+            title: "Telefonos",
+            subtitle: "Dashboard con demanda de telefonos y prevision",
+            actions: headerActions,
+        });
+
+        return () => {
+            resetHeader();
+        };
+    }, [headerActions, resetHeader, setHeader]);
+
     if (error) {
         return (
             <div className="flex min-h-[60vh] w-full items-center justify-center px-4">
@@ -268,68 +334,6 @@ export default function TelefonosTicketsDashboard() {
 
     return (
         <section className="flex flex-col gap-6 px-4 py-6 sm:gap-8 sm:px-6 lg:px-8">
-            {/* Header */}
-            <header className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-2xl font-semibold tracking-tight">Teléfonos</h1>
-                    <p className="text-muted-foreground text-sm">Dashboard con demanda de teléfonos y previsión</p>
-                </div>
-
-                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-                    <div className="w-full sm:w-auto">
-                        <Select
-                            label=""
-                            placeholder="Seleccionar período"
-                            selectedKey={selectedQuarter}
-                            onSelectionChange={(key) => {
-                                const quarter = key as string;
-                                setSelectedQuarter(quarter);
-
-                                if (quarter !== "custom") {
-                                    const range = getQuarterDateRange(quarter);
-                                    setDateRange(range);
-                                } else {
-                                    // Limpiar el rango cuando se selecciona "Personalizado"
-                                    setDateRange({});
-                                }
-                            }}
-                            items={quarterOptions}
-                            className="w-full min-w-0 sm:w-48 sm:min-w-48 lg:w-56"
-                        >
-                            {(item) => <Select.Item id={item.id}>{item.label}</Select.Item>}
-                        </Select>
-                    </div>
-
-                    <div className="w-full sm:w-auto">
-                        <DateRangePicker
-                            key={selectedQuarter} // Forzar re-render al cambiar de quarter
-                            className="w-full"
-                            isDisabled={selectedQuarter !== "custom"}
-                            onChange={(range) => {
-                                if (range?.start && range?.end) {
-                                    const startDate = `${range.start.year}-${String(range.start.month).padStart(2, "0")}-${String(range.start.day).padStart(2, "0")}`;
-                                    const endDate = `${range.end.year}-${String(range.end.month).padStart(2, "0")}-${String(range.end.day).padStart(2, "0")}`;
-                                    setDateRange({ start: startDate, end: endDate });
-                                }
-                            }}
-                        />
-                    </div>
-
-                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-                        {isAdminUser && <SyncTicketsButton className="w-full justify-center sm:w-auto" onSyncComplete={() => refetch()} />}
-                        <Button
-                            color="secondary"
-                            iconLeading={Stars02}
-                            size="sm"
-                            className="w-full justify-center sm:w-auto"
-                            onClick={() => toast.info("En desarrollo")}
-                        >
-                            AI
-                        </Button>
-                    </div>
-                </div>
-            </header>
-
             {/* KPIs con Modals */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {kpiConfigs.map((config, i) => (

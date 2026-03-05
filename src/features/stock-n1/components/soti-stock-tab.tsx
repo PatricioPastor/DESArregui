@@ -14,6 +14,8 @@ import { SotiLogo } from "./soti-logo";
 
 const PAGE_SIZE = 25;
 const SOTI_LICENSES_TOTAL = 1944;
+const SOTI_RING_COLOR = "#0074aa";
+const SOTI_RING_TRACK_COLOR = "#d1d5db";
 
 const SOTI_FILTER_OPTIONS = {
     ACTIVE: "active",
@@ -55,6 +57,7 @@ export function SotiStockTab() {
 
     const activeCount = summary?.activeRecords ?? 0;
     const availableLicenses = Math.max(0, SOTI_LICENSES_TOTAL - activeCount);
+    const usagePercent = Math.min(100, Math.round((activeCount / SOTI_LICENSES_TOTAL) * 100));
 
     useEffect(() => {
         setPage(1);
@@ -272,7 +275,7 @@ export function SotiStockTab() {
                 ) : null}
             </article>
 
-            <aside className="flex h-full min-h-0 flex-col gap-3 rounded-2xl border border-secondary bg-primary p-3 shadow-sm">
+            <aside className="flex h-full min-h-0 flex-col justify-between gap-4 rounded-2xl border border-secondary bg-primary p-3 shadow-sm">
                 <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileChange} className="hidden" aria-hidden="true" />
 
                 <div className="space-y-2">
@@ -304,14 +307,38 @@ export function SotiStockTab() {
                 </div>
 
                 <div className="rounded-xl border border-secondary bg-primary px-3 py-3 shadow-xs">
-                    <div className="flex items-center gap-2">
-                        <SotiLogo className="h-5 w-auto shrink-0" />
-                        <p className="text-xs font-bold text-primary">Licencias SOTI</p>
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                            <SotiLogo className="h-5 w-auto shrink-0" />
+                            <p className="text-xs font-bold text-primary">Licencias SOTI</p>
+                        </div>
+
+                        <div
+                            className="relative h-14 w-14 rounded-full"
+                            style={{
+                                background: `conic-gradient(${SOTI_RING_COLOR} ${usagePercent * 3.6}deg, ${SOTI_RING_TRACK_COLOR} 0deg)`,
+                            }}
+                            aria-hidden="true"
+                        >
+                            <div className="absolute inset-[6px] flex items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary">
+                                {usagePercent}%
+                            </div>
+                        </div>
                     </div>
-                    <p className="mt-1 text-sm font-semibold text-primary">
-                        {activeCount.toLocaleString("es-AR")} / {SOTI_LICENSES_TOTAL.toLocaleString("es-AR")}
-                    </p>
-                    <p className="text-xs text-secondary">Disponibles: {availableLicenses.toLocaleString("es-AR")}</p>
+
+                    <div className="grid grid-cols-2 gap-2 text-center">
+                        <div className="rounded-lg border border-secondary/80 bg-secondary/10 px-2 py-2">
+                            <p className="text-[11px] font-medium text-secondary">Activas</p>
+                            <p className="mt-1 text-sm font-semibold text-primary">{activeCount.toLocaleString("es-AR")}</p>
+                        </div>
+
+                        <div className="rounded-lg border border-secondary/80 bg-secondary/10 px-2 py-2">
+                            <p className="text-[11px] font-medium text-secondary">Disponibles</p>
+                            <p className="mt-1 text-sm font-semibold text-primary">{availableLicenses.toLocaleString("es-AR")}</p>
+                        </div>
+                    </div>
+
+                    <p className="mt-2 text-center text-xs text-secondary">Total licencias: {SOTI_LICENSES_TOTAL.toLocaleString("es-AR")}</p>
                 </div>
             </aside>
         </section>

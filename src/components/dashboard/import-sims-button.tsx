@@ -238,7 +238,8 @@ export function ImportSimsButton({ onImportComplete, size = "sm", color = "secon
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                 <div className="min-w-40">
                     <Select
-                        label="Proveedor"
+                        placeholder="Proveedor"
+                        size="sm"
                         selectedKey={selectedProvider ?? undefined}
                         onSelectionChange={(key) => setSelectedProvider(key as SupportedSimProvider)}
                         items={SUPPORTED_PROVIDER_OPTIONS}
@@ -248,7 +249,7 @@ export function ImportSimsButton({ onImportComplete, size = "sm", color = "secon
                 </div>
                 <Button
                     color={color}
-                    size={size}
+                    size="md"
                     iconLeading={UploadCloud02}
                     onClick={handleButtonClick}
                     isLoading={isLoading}

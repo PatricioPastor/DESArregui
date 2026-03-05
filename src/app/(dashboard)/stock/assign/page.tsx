@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { device_status } from "@/generated/prisma";
 import prisma from "@/lib/prisma";
 import { AssignOnboardingClient, type AssignmentFlow } from "./assign-onboarding.client";
+import { AssignShellHeaderBridge } from "./assign-shell-header-bridge";
 
 type AssignSearchParams = {
     imei?: string | string[];
@@ -77,18 +77,7 @@ export default async function AssignLandingPage({ searchParams }: { searchParams
 
     return (
         <section className="flex flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-            <header className="flex flex-col gap-3 border-b border-secondary pb-4">
-                <div className="text-sm text-tertiary">
-                    <Link href="/stock" className="transition hover:text-primary">
-                        Inventario
-                    </Link>
-                    <span className="mx-2">/</span>
-                    <span className="font-medium text-secondary">Asignación</span>
-                </div>
-
-                <h1 className="text-2xl font-semibold tracking-tight text-primary">{`Asignación ${model} - ${normalizedImei}`}</h1>
-            </header>
-
+            <AssignShellHeaderBridge model={model} imei={normalizedImei} />
             <AssignOnboardingClient deviceId={deviceId} imei={normalizedImei} model={model} initialFlow={initialFlow} />
         </section>
     );

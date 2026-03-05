@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy01, FilterLines, SearchLg, X } from "@untitledui/icons";
 import type { SortDescriptor } from "react-aria-components";
 import { toast } from "sonner";
@@ -14,9 +14,7 @@ import { Input } from "@/components/base/input/input";
 import { Select } from "@/components/base/select/select";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useSimsData } from "@/hooks/use-sims-data";
-import { useSession } from "@/lib/auth-client";
 import type { SimRecord } from "@/lib/types";
-import { ImportSimsButton } from "./import-sims-button";
 
 function highlightMatches(value: string, query: string) {
     const normalizedQuery = query.trim();
@@ -66,9 +64,11 @@ async function copyToClipboard(label: string, value: string) {
     }
 }
 
-export function SimsTable() {
-    const { data: session } = useSession();
-    const isAdmin = session?.user?.role === "admin";
+interface SimsTableProps {
+    refreshVersion?: number;
+}
+
+export function SimsTable({ refreshVersion }: SimsTableProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
@@ -106,11 +106,28 @@ export function SimsTable() {
     );
 
     const { data, isLoading, error, totalRecords, metadata, refresh } = useSimsData(debouncedSearchQuery, filters, simsQueryOptions);
+    const lastRefreshVersion = useRef(refreshVersion);
 
     // Reset page when filters/sort/pageSize change
     useEffect(() => {
         setPage(1);
     }, [statusFilter, providerFilter, distributorFilter, isActiveFilter, debouncedSearchQuery, pageSize, sortDescriptor.column, sortDescriptor.direction]);
+
+    useEffect(() => {
+        if (refreshVersion === undefined) {
+            return;
+        }
+
+        if (lastRefreshVersion.current === undefined) {
+            lastRefreshVersion.current = refreshVersion;
+            return;
+        }
+
+        if (refreshVersion !== lastRefreshVersion.current) {
+            lastRefreshVersion.current = refreshVersion;
+            void refresh();
+        }
+    }, [refresh, refreshVersion]);
 
     const clearFilters = () => {
         setStatusFilter("all");
@@ -168,21 +185,14 @@ export function SimsTable() {
 
     return (
         <div className="flex flex-col gap-6 pb-6">
-            {/* Header */}
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h1 className="text-2xl font-semibold text-primary">Gestión de SIMs</h1>
-                    <p className="mt-1 text-sm text-secondary">
-                        Total: {totalRecords.toLocaleString()} SIMs
-                        {metadata && (
-                            <>
-                                {" "}
-                                • Activas: {metadata.totalActive.toLocaleString()} • Inactivas: {metadata.totalInactive.toLocaleString()}
-                            </>
-                        )}
-                    </p>
-                </div>
-                {isAdmin && <ImportSimsButton onImportComplete={refresh} />}
+            <div className="text-sm text-secondary">
+                Total: {totalRecords.toLocaleString()} SIMs
+                {metadata && (
+                    <>
+                        {" "}
+                        • Activas: {metadata.totalActive.toLocaleString()} • Inactivas: {metadata.totalInactive.toLocaleString()}
+                    </>
+                )}
             </div>
 
             {/* Search and Filters */}
